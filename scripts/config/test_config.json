@@ -1,0 +1,47 @@
+{
+  "test_environments": [
+    {
+      "name": "docker-primary",
+      "ip": "127.0.0.1",
+      "port": 2221,
+      "user": "root",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_deploy_path": "/home/ubuntu/aurelia",
+      "role": "primary"
+    },
+    {
+      "name": "docker-replica1",
+      "ip": "127.0.0.1",
+      "port": 2222,
+      "user": "root",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_deploy_path": "/home/ubuntu/aurelia",
+      "role": "replica"
+    },
+    {
+      "name": "docker-replica2",
+      "ip": "127.0.0.1",
+      "port": 2223,
+      "user": "root",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_deploy_path": "/home/ubuntu/aurelia",
+      "role": "replica"
+    }
+  ],
+  "test_settings": {
+    "initial_funds": 1000.0,
+    "test_duration_minutes": 10,
+    "health_check_interval_seconds": 30,
+    "auto_deploy_threshold": 0.8,
+    "resource_limits": {
+      "max_cpu_percent": 80.0,
+      "max_memory_mb": 512,
+      "max_disk_gb": 5
+    }
+  },
+  "monitoring": {
+    "metrics_port": 9090,
+    "log_level": "debug",
+    "alert_endpoints": []
+  }
+}

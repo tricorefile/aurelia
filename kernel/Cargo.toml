@@ -1,0 +1,23 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+resource_monitor = { path = "../resource_monitor" }
+perception_core = { path = "../perception_core" }
+common = { path = "../common" }
+strategy_engine = { path = "../strategy_engine" }
+execution_engine = { path = "../execution_engine" }
+metamorphosis_engine = { path = "../metamorphosis_engine" }
+survival_protocol = { path = "../survival_protocol" }
+reasoning_engine = { path = "../reasoning_engine" }
+autonomy_core = { path = "../autonomy_core" }
+monitoring_service = { path = "../monitoring_service" }
+serde_json = { workspace = true }
+serde = { workspace = true }
+libloading = "0.8"

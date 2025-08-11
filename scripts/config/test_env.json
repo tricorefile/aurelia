@@ -1,0 +1,40 @@
+{
+  "test_environments": [
+    {
+      "name": "ubuntu-test-server-1",
+      "ip": "192.168.1.100",
+      "port": 22,
+      "user": "ubuntu",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_deploy_path": "/home/ubuntu/aurelia_agent",
+      "role": "primary"
+    },
+    {
+      "name": "ubuntu-test-server-2",
+      "ip": "192.168.1.101",
+      "port": 22,
+      "user": "ubuntu",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_deploy_path": "/home/ubuntu/aurelia_agent",
+      "role": "replica"
+    }
+  ],
+  "test_settings": {
+    "initial_funds": 1000.0,
+    "test_duration_minutes": 60,
+    "health_check_interval_seconds": 30,
+    "auto_deploy_threshold": 0.8,
+    "resource_limits": {
+      "max_cpu_percent": 80.0,
+      "max_memory_mb": 1024,
+      "max_disk_gb": 10
+    }
+  },
+  "monitoring": {
+    "metrics_port": 9090,
+    "log_level": "debug",
+    "alert_endpoints": [
+      "http://localhost:8080/alerts"
+    ]
+  }
+}

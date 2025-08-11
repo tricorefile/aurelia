@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # 主节点 - Ubuntu SSH服务器
+  aurelia-primary:
+    image: rastasheep/ubuntu-sshd:20.04
+    container_name: aurelia-primary
+    hostname: aurelia-primary
+    ports:
+      - "2221:22"
+      - "8081:8080"
+    networks:
+      aurelia-net:
+        ipv4_address: 172.20.0.10
+    volumes:
+      - ./deploy_primary:/home/ubuntu/aurelia
+      - ~/.ssh/id_rsa.pub:/root/.ssh/authorized_keys:ro
+    environment:
+      - ROOT_PASS=aurelia123
+    restart: unless-stopped
+
+  # 副本节点1 - Ubuntu SSH服务器
+  aurelia-replica1:
+    image: rastasheep/ubuntu-sshd:20.04
+    container_name: aurelia-replica1
+    hostname: aurelia-replica1
+    ports:
+      - "2222:22"
+      - "8082:8080"
+    networks:
+      aurelia-net:
+        ipv4_address: 172.20.0.11
+    volumes:
+      - ./deploy_replica1:/home/ubuntu/aurelia
+      - ~/.ssh/id_rsa.pub:/root/.ssh/authorized_keys:ro
+    environment:
+      - ROOT_PASS=aurelia123
+    restart: unless-stopped
+
+  # 副本节点2 - Ubuntu SSH服务器
+  aurelia-replica2:
+    image: rastasheep/ubuntu-sshd:20.04
+    container_name: aurelia-replica2
+    hostname: aurelia-replica2
+    ports:
+      - "2223:22"
+      - "8083:8080"
+    networks:
+      aurelia-net:
+        ipv4_address: 172.20.0.12
+    volumes:
+      - ./deploy_replica2:/home/ubuntu/aurelia
+      - ~/.ssh/id_rsa.pub:/root/.ssh/authorized_keys:ro
+    environment:
+      - ROOT_PASS=aurelia123
+    restart: unless-stopped
+
+  # 监控节点 - 用于观察智能体行为
+  aurelia-monitor:
+    image: rastasheep/ubuntu-sshd:20.04
+    container_name: aurelia-monitor
+    hostname: aurelia-monitor
+    ports:
+      - "2224:22"
+      - "9090:9090"
+    networks:
+      aurelia-net:
+        ipv4_address: 172.20.0.20
+    volumes:
+      - ./deploy_monitor:/home/ubuntu/monitor
+      - ~/.ssh/id_rsa.pub:/root/.ssh/authorized_keys:ro
+    environment:
+      - ROOT_PASS=aurelia123
+    restart: unless-stopped
+
+networks:
+  aurelia-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1

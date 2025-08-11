@@ -1,0 +1,31 @@
+[package]
+name = "monitoring_service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.38", features = ["full"] }
+
+# Web framework
+actix-web = "4.5"
+actix-cors = "0.7"
+actix-rt = "2.9"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Monitoring
+sysinfo = "0.30"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+env_logger = "0.11"
+
+# Error handling
+anyhow = "1.0"
+
+# System info
+hostname = "0.4"

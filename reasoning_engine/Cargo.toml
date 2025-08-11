@@ -1,0 +1,11 @@
+[package]
+name = "reasoning_engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = { path = "../common" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+reqwest = { workspace = true }
