@@ -15,6 +15,7 @@ pub trait Deployer: Send + Sync {
 }
 
 /// The real deployment handler that uses ssh2.
+#[allow(dead_code)]
 struct SshDeployer;
 
 impl Deployer for SshDeployer {
@@ -70,6 +71,7 @@ impl Deployer for SshDeployer {
 }
 
 impl SshDeployer {
+    #[allow(dead_code)]
     fn exec_command(
         &self,
         sess: &mut Session,
@@ -84,6 +86,7 @@ impl SshDeployer {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn upload_files(
         &self,
         sess: &mut Session,
@@ -125,10 +128,14 @@ impl SshDeployer {
 }
 
 pub struct ExecutionEngine {
+    #[allow(dead_code)]
     tx: EventSender,
     rx: EventReceiver,
+    #[allow(dead_code)]
     api_key: String,
+    #[allow(dead_code)]
     api_secret: String,
+    #[allow(dead_code)]
     client: reqwest::Client,
     deployer: Box<dyn Deployer>,
 }
