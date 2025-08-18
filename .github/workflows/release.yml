@@ -41,18 +41,18 @@ jobs:
             bin: kernel
             command: build
           
-          # macOS builds
-          - name: macos-x86_64
-            os: macos-latest
-            target: x86_64-apple-darwin
-            bin: kernel
-            command: build
+          # macOS builds - SKIPPED
+          # - name: macos-x86_64
+          #   os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   bin: kernel
+          #   command: build
           
-          - name: macos-aarch64
-            os: macos-latest
-            target: aarch64-apple-darwin
-            bin: kernel
-            command: build
+          # - name: macos-aarch64
+          #   os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   bin: kernel
+          #   command: build
           
           # Windows builds
           - name: windows-x86_64
@@ -199,10 +199,6 @@ jobs:
             - `aurelia-linux-x86_64.tar.gz` - 标准Linux x86_64版本 (Ubuntu, Debian, CentOS等)
             - `aurelia-linux-x86_64-musl.tar.gz` - 静态链接版本，适用于Alpine Linux或需要更好兼容性的场景
             - `aurelia-linux-aarch64.tar.gz` - ARM64版本 (树莓派4, AWS Graviton等)
-            
-            ### macOS
-            - `aurelia-macos-x86_64.tar.gz` - Intel Mac
-            - `aurelia-macos-aarch64.tar.gz` - Apple Silicon (M1/M2/M3)
             
             ### Windows
             - `aurelia-windows-x86_64.zip` - Windows 64位
