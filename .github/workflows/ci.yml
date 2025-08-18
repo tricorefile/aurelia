@@ -104,11 +104,13 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} --bin kernel
 
-      - name: Test binary
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-apple-darwin' || matrix.target == 'x86_64-pc-windows-msvc'
+      - name: Test binary (Unix)
+        if: (matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-apple-darwin') && matrix.os != 'windows-latest'
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            ./target/${{ matrix.target }}/release/kernel.exe --version || echo "No version flag"
-          else
-            ./target/${{ matrix.target }}/release/kernel --version || echo "No version flag"
-          fi
+          ./target/${{ matrix.target }}/release/kernel --version || echo "No version flag"
+
+      - name: Test binary (Windows)
+        if: matrix.target == 'x86_64-pc-windows-msvc' && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          ./target/${{ matrix.target }}/release/kernel.exe --version 2>$null || echo "No version flag"
