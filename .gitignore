@@ -6,3 +6,6 @@
 
 # Ignore local log files
 *.log
+
+# Ignore local config
+.cargo/config.toml.local
