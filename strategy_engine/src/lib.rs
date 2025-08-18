@@ -19,6 +19,12 @@ pub extern "C" fn run_strategy_engine() {
 
 pub struct StrategyEngine {}
 
+impl Default for StrategyEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StrategyEngine {
     pub fn new() -> Self {
         // Clear the output file on start
@@ -59,8 +65,8 @@ impl StrategyEngine {
 }
 
 #[no_mangle]
-pub extern "C" fn process_event_from_kernel(event_json: *const std::os::raw::c_char) {
-    let c_str = unsafe { std::ffi::CStr::from_ptr(event_json) };
+pub unsafe extern "C" fn process_event_from_kernel(event_json: *const std::os::raw::c_char) {
+    let c_str = std::ffi::CStr::from_ptr(event_json);
     if let Ok(json_str) = c_str.to_str() {
         if let Ok(event) = serde_json::from_str::<AppEvent>(json_str) {
             // In a real implementation, you'd send this to the engine's main task via an internal channel.

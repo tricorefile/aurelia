@@ -33,12 +33,9 @@ impl SurvivalProtocol {
                     self.check_runway().await;
                 }
                 Ok(event) = self.rx.recv() => {
-                    match event {
-                        AppEvent::FinancialUpdate(funds) => {
-                            self.current_funds = funds;
-                            self.check_runway().await;
-                        }
-                        _ => {}
+                    if let AppEvent::FinancialUpdate(funds) = event {
+                        self.current_funds = funds;
+                        self.check_runway().await;
                     }
                 }
                 else => { break; } // Channel closed

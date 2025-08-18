@@ -57,7 +57,7 @@ impl MetamorphosisEngine {
 
         // 4. Recompile the crate
         let output = Command::new("cargo")
-            .args(&["build", "-p", "strategy_engine", "--release"])
+            .args(["build", "-p", "strategy_engine", "--release"])
             .output()
             .expect("Failed to execute cargo build");
 
