@@ -1,11 +1,11 @@
-use actix_web::{web, App, HttpResponse, HttpServer, Result, middleware};
 use actix_cors::Cors;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use std::collections::HashMap;
+use actix_web::{middleware, web, App, HttpResponse, HttpServer, Result};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
 use sysinfo::System;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentStatus {
@@ -85,7 +85,7 @@ impl MonitoringHttpService {
 
     pub fn start_server(self) {
         let service_data = web::Data::new(self.clone());
-        
+
         // 启动后台指标收集
         let metrics_service = self.clone();
         tokio::spawn(async move {
@@ -103,13 +103,14 @@ impl MonitoringHttpService {
         println!("   GET /health");
 
         let port = self.port;
-        
+
         // 在独立线程中运行Actix系统
         std::thread::spawn(move || {
             let rt = actix_web::rt::System::new();
             rt.block_on(async move {
                 // 尝试初始化env_logger，如果已经初始化则忽略错误
-                let _ = env_logger::try_init_from_env(env_logger::Env::new().default_filter_or("info"));
+                let _ =
+                    env_logger::try_init_from_env(env_logger::Env::new().default_filter_or("info"));
                 HttpServer::new(move || {
                     let cors = Cors::default()
                         .allow_any_origin()
@@ -139,10 +140,10 @@ impl MonitoringHttpService {
 
     async fn collect_metrics_loop(&self) {
         let mut sys = System::new_all();
-        
+
         loop {
             sys.refresh_all();
-            
+
             let cpu_usage = sys.global_cpu_info().cpu_usage();
             let total_memory = sys.total_memory() as f64 / 1024.0 / 1024.0;
             let used_memory = sys.used_memory() as f64 / 1024.0 / 1024.0;
@@ -163,7 +164,7 @@ impl MonitoringHttpService {
             let hostname = hostname::get()
                 .map(|h| h.to_string_lossy().to_string())
                 .unwrap_or_else(|_| "localhost".to_string());
-            
+
             agents.insert(
                 "local".to_string(),
                 AgentStatus {
@@ -184,10 +185,15 @@ impl MonitoringHttpService {
         }
     }
 
-    pub async fn update_trading_status(&self, active: bool, symbol: Option<String>, price: Option<f64>) {
+    pub async fn update_trading_status(
+        &self,
+        active: bool,
+        symbol: Option<String>,
+        price: Option<f64>,
+    ) {
         let mut status = self.trading_status.write().await;
         status.active = active;
-        
+
         if let (Some(sym), Some(p)) = (symbol, price) {
             status.last_price.insert(sym, p);
         }
@@ -230,7 +236,7 @@ async fn get_status(service: web::Data<MonitoringHttpService>) -> Result<HttpRes
     let agents = service.agents.read().await;
     let metrics = service.system_metrics.read().await;
     let trading = service.trading_status.read().await;
-    
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "timestamp": Utc::now(),
         "total_agents": agents.len(),
@@ -249,11 +255,11 @@ async fn get_agents(service: web::Data<MonitoringHttpService>) -> Result<HttpRes
 async fn get_cluster_status(service: web::Data<MonitoringHttpService>) -> Result<HttpResponse> {
     let agents = service.agents.read().await;
     let metrics = service.system_metrics.read().await;
-    
+
     let healthy = agents.values().filter(|a| a.status == "Running").count();
     let degraded = agents.values().filter(|a| a.status == "Degraded").count();
     let offline = agents.values().filter(|a| a.status == "Offline").count();
-    
+
     let status = ClusterStatus {
         total_agents: agents.len(),
         healthy_agents: healthy,
@@ -261,10 +267,15 @@ async fn get_cluster_status(service: web::Data<MonitoringHttpService>) -> Result
         offline_agents: offline,
         total_cpu_usage: metrics.cpu_usage,
         total_memory_usage: metrics.memory_percentage,
-        cluster_health: if healthy == agents.len() { "Healthy" } else { "Degraded" }.to_string(),
+        cluster_health: if healthy == agents.len() {
+            "Healthy"
+        } else {
+            "Degraded"
+        }
+        .to_string(),
         agents: agents.values().cloned().collect(),
     };
-    
+
     Ok(HttpResponse::Ok().json(status))
 }
 

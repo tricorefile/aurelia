@@ -1,9 +1,13 @@
 use crate::{
-    decision_maker::{AutonomousDecisionMaker, Decision, DecisionContext, NodeInfo, NodeStatus, ResourceMetrics},
+    decision_maker::{
+        AutonomousDecisionMaker, Decision, DecisionContext, NodeInfo, NodeStatus, ResourceMetrics,
+    },
     health_monitor::{HealthMonitor, HealthStatus},
     recovery_manager::{FailureEvent, FailureType, RecoveryManager},
     self_replicator::{ReplicationTarget, SelfReplicator},
-    task_scheduler::{Task, TaskScheduler, TaskType, TaskStatus, HealthCheckExecutor, ReplicationExecutor},
+    task_scheduler::{
+        HealthCheckExecutor, ReplicationExecutor, Task, TaskScheduler, TaskStatus, TaskType,
+    },
 };
 use anyhow::Result;
 use chrono::Utc;
@@ -29,7 +33,7 @@ impl AutonomousAgent {
         let recovery_manager = Arc::new(RecoveryManager::new());
         let self_replicator = Arc::new(SelfReplicator::new(binary_path));
         let task_scheduler = Arc::new(TaskScheduler::new());
-        
+
         Self {
             decision_maker,
             health_monitor,
@@ -42,24 +46,22 @@ impl AutonomousAgent {
 
     pub async fn initialize(&self) -> Result<()> {
         info!("Initializing Autonomous Agent");
-        
+
         // Register task executors
-        self.task_scheduler.register_executor(
-            TaskType::HealthCheck,
-            Box::new(HealthCheckExecutor),
-        ).await;
-        
-        self.task_scheduler.register_executor(
-            TaskType::Replication,
-            Box::new(ReplicationExecutor),
-        ).await;
-        
+        self.task_scheduler
+            .register_executor(TaskType::HealthCheck, Box::new(HealthCheckExecutor))
+            .await;
+
+        self.task_scheduler
+            .register_executor(TaskType::Replication, Box::new(ReplicationExecutor))
+            .await;
+
         // Schedule initial tasks
         self.schedule_core_tasks().await?;
-        
+
         // Add initial replication targets
         self.configure_replication_targets().await?;
-        
+
         info!("Autonomous Agent initialized successfully");
         Ok(())
     }
@@ -79,13 +81,15 @@ impl AutonomousAgent {
             status: TaskStatus::Pending,
             result: None,
         };
-        
-        self.task_scheduler.schedule_recurring_task(
-            health_check_task,
-            chrono::Duration::minutes(5),
-            288, // 24 hours worth of 5-minute intervals
-        ).await?;
-        
+
+        self.task_scheduler
+            .schedule_recurring_task(
+                health_check_task,
+                chrono::Duration::minutes(5),
+                288, // 24 hours worth of 5-minute intervals
+            )
+            .await?;
+
         // Schedule periodic replication checks
         let replication_task = Task {
             id: "replication-check".to_string(),
@@ -100,13 +104,11 @@ impl AutonomousAgent {
             status: TaskStatus::Pending,
             result: None,
         };
-        
-        self.task_scheduler.schedule_recurring_task(
-            replication_task,
-            chrono::Duration::hours(1),
-            24,
-        ).await?;
-        
+
+        self.task_scheduler
+            .schedule_recurring_task(replication_task, chrono::Duration::hours(1), 24)
+            .await?;
+
         Ok(())
     }
 
@@ -135,39 +137,39 @@ impl AutonomousAgent {
                 failure_count: 0,
             },
         ];
-        
+
         for target in targets {
             self.self_replicator.add_target(target).await;
         }
-        
+
         Ok(())
     }
 
     pub async fn run(&self) -> Result<()> {
         info!("Starting Autonomous Agent");
         *self.is_running.write().await = true;
-        
+
         // Start all autonomous subsystems
         let health_monitor = self.health_monitor.clone();
         let health_handle = tokio::spawn(async move {
             health_monitor.start_monitoring().await;
         });
-        
+
         let recovery_manager = self.recovery_manager.clone();
         let recovery_handle = tokio::spawn(async move {
             recovery_manager.auto_recover().await;
         });
-        
+
         let self_replicator = self.self_replicator.clone();
         let replication_handle = tokio::spawn(async move {
             self_replicator.auto_manage().await;
         });
-        
+
         let task_scheduler = self.task_scheduler.clone();
         let scheduler_handle = tokio::spawn(async move {
             task_scheduler.run().await;
         });
-        
+
         // Main decision loop
         let decision_loop_handle = tokio::spawn({
             let is_running = self.is_running.clone();
@@ -175,12 +177,12 @@ impl AutonomousAgent {
             let health_monitor = self.health_monitor.clone();
             let self_replicator = self.self_replicator.clone();
             let recovery_manager = self.recovery_manager.clone();
-            
+
             async move {
                 while *is_running.read().await {
                     // Gather context
                     let context = Self::gather_context(&health_monitor).await;
-                    
+
                     // Make decision
                     let decision = {
                         let mut dm = decision_maker.write().await;
@@ -188,24 +190,22 @@ impl AutonomousAgent {
                             Ok(d) => d,
                             Err(e) => {
                                 error!("Decision making failed: {}", e);
-                                Decision::Wait { duration_seconds: 30 }
+                                Decision::Wait {
+                                    duration_seconds: 30,
+                                }
                             }
                         }
                     };
-                    
+
                     // Execute decision
-                    Self::execute_decision(
-                        decision,
-                        &self_replicator,
-                        &recovery_manager,
-                    ).await;
-                    
+                    Self::execute_decision(decision, &self_replicator, &recovery_manager).await;
+
                     // Wait before next decision cycle
                     tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                 }
             }
         });
-        
+
         // Wait for all tasks
         tokio::select! {
             _ = health_handle => warn!("Health monitor stopped"),
@@ -214,23 +214,23 @@ impl AutonomousAgent {
             _ = scheduler_handle => warn!("Task scheduler stopped"),
             _ = decision_loop_handle => warn!("Decision loop stopped"),
         }
-        
+
         info!("Autonomous Agent stopped");
         Ok(())
     }
 
     async fn gather_context(health_monitor: &Arc<HealthMonitor>) -> DecisionContext {
         let health_summary = health_monitor.get_current_health().await;
-        
+
         let system_health = match health_summary.status {
             HealthStatus::Healthy => 1.0,
             HealthStatus::Degraded(_) => 0.7,
             HealthStatus::Critical(_) => 0.4,
             HealthStatus::Failed(_) => 0.1,
         };
-        
+
         let metrics = &health_summary.metrics;
-        
+
         DecisionContext {
             timestamp: Utc::now(),
             system_health,
@@ -240,15 +240,13 @@ impl AutonomousAgent {
                 disk_gb: metrics.disk_usage,
                 network_mbps: 0.0,
             },
-            active_nodes: vec![
-                NodeInfo {
-                    id: "primary".to_string(),
-                    ip: "127.0.0.1".to_string(),
-                    status: NodeStatus::Healthy,
-                    last_seen: Utc::now(),
-                    load: metrics.cpu_usage / 100.0,
-                },
-            ],
+            active_nodes: vec![NodeInfo {
+                id: "primary".to_string(),
+                ip: "127.0.0.1".to_string(),
+                status: NodeStatus::Healthy,
+                last_seen: Utc::now(),
+                load: metrics.cpu_usage / 100.0,
+            }],
             failed_nodes: vec![],
             pending_tasks: 0,
             market_conditions: None,
@@ -261,18 +259,24 @@ impl AutonomousAgent {
         recovery_manager: &Arc<RecoveryManager>,
     ) {
         info!("Executing decision: {:?}", decision);
-        
+
         match decision {
-            Decision::Deploy { target_servers, priority, reason } => {
+            Decision::Deploy {
+                target_servers,
+                priority,
+                reason,
+            } => {
                 info!("Deploying to {} servers: {}", target_servers.len(), reason);
-                
+
                 for server_ip in target_servers {
                     let target = ReplicationTarget {
                         ip: server_ip.clone(),
                         user: "ubuntu".to_string(),
                         ssh_key_path: PathBuf::from("~/.ssh/id_rsa"),
-                        remote_path: PathBuf::from(format!("/home/ubuntu/aurelia_{}", 
-                                                          server_ip.replace(".", "_"))),
+                        remote_path: PathBuf::from(format!(
+                            "/home/ubuntu/aurelia_{}",
+                            server_ip.replace(".", "_")
+                        )),
                         priority: match priority {
                             crate::decision_maker::Priority::Critical => 1,
                             crate::decision_maker::Priority::High => 2,
@@ -283,18 +287,18 @@ impl AutonomousAgent {
                         success_count: 0,
                         failure_count: 0,
                     };
-                    
+
                     self_replicator.add_target(target).await;
                 }
-                
+
                 if let Err(e) = self_replicator.replicate().await {
                     error!("Replication failed: {}", e);
                 }
             }
-            
+
             Decision::Scale { factor, reason } => {
                 info!("Scaling by factor {}: {}", factor, reason);
-                
+
                 // Trigger scaling operations
                 let replicas_needed = (factor * 2.0) as usize;
                 for _ in 0..replicas_needed {
@@ -303,10 +307,16 @@ impl AutonomousAgent {
                     }
                 }
             }
-            
-            Decision::Recover { failed_node, recovery_action } => {
-                info!("Recovering failed node {}: {:?}", failed_node, recovery_action);
-                
+
+            Decision::Recover {
+                failed_node,
+                recovery_action,
+            } => {
+                info!(
+                    "Recovering failed node {}: {:?}",
+                    failed_node, recovery_action
+                );
+
                 let failure = FailureEvent {
                     id: uuid::Uuid::new_v4().to_string(),
                     timestamp: Utc::now(),
@@ -316,20 +326,20 @@ impl AutonomousAgent {
                     severity: 7,
                     auto_recoverable: true,
                 };
-                
+
                 if let Err(e) = recovery_manager.handle_failure(failure).await {
                     error!("Recovery failed: {}", e);
                 }
             }
-            
+
             Decision::Monitor { interval_seconds } => {
                 debug!("Monitoring with interval {} seconds", interval_seconds);
             }
-            
+
             Decision::Wait { duration_seconds } => {
                 debug!("Waiting for {} seconds", duration_seconds);
             }
-            
+
             _ => {
                 warn!("Unhandled decision type: {:?}", decision);
             }
@@ -346,7 +356,7 @@ impl AutonomousAgent {
         let replication_status = self.self_replicator.get_status().await;
         let recovery_stats = self.recovery_manager.get_recovery_stats().await;
         let scheduler_status = self.task_scheduler.get_status().await;
-        
+
         AgentStatus {
             is_running: *self.is_running.read().await,
             health_status: format!("{:?}", health_summary.status),

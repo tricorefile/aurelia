@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimpleAgentStatus {
@@ -38,7 +38,7 @@ impl SimpleMonitoringService {
         // Simple HTTP server
         let addr = format!("0.0.0.0:{}", self.port);
         tracing::info!("Monitoring service starting on {}", addr);
-        
+
         // For now, just log that we're ready
         // In a real implementation, we'd start an actual HTTP server here
         loop {
@@ -50,24 +50,24 @@ impl SimpleMonitoringService {
 
     async fn monitor_loop(&self) {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
-        
+
         loop {
             interval.tick().await;
-            
+
             // Collect local metrics
             let hostname = hostname::get()
                 .map(|h| h.to_string_lossy().to_string())
                 .unwrap_or_else(|_| "localhost".to_string());
-            
+
             let status = SimpleAgentStatus {
                 agent_id: format!("agent-{}", hostname),
                 hostname: hostname.clone(),
                 status: "Running".to_string(),
-                cpu_usage: 25.0, // Mock value
+                cpu_usage: 25.0,    // Mock value
                 memory_usage: 40.0, // Mock value
                 last_heartbeat: Utc::now(),
             };
-            
+
             let mut agents = self.agents.write().await;
             agents.insert(status.agent_id.clone(), status);
         }

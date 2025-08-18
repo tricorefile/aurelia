@@ -1,6 +1,6 @@
+use clap::{Parser, Subcommand};
 use deployment_tester::{TestConfig, TestRunner};
 use std::path::PathBuf;
-use clap::{Parser, Subcommand};
 use tracing_subscriber;
 
 #[derive(Parser)]
@@ -10,11 +10,11 @@ struct Cli {
     /// Path to test configuration file
     #[arg(short, long, default_value = "test_env.json")]
     config: PathBuf,
-    
+
     /// Path to kernel binary
     #[arg(short, long, default_value = "target/release/kernel")]
     binary: PathBuf,
-    
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -23,26 +23,26 @@ struct Cli {
 enum Commands {
     /// Run the complete test suite
     Full,
-    
+
     /// Test SSH connections only
     Connection,
-    
+
     /// Deploy agents to all servers
     Deploy,
-    
+
     /// Test self-replication capability
     Replication,
-    
+
     /// Run validation tests
     Validate,
-    
+
     /// Start continuous monitoring
     Monitor {
         /// Duration in minutes
         #[arg(short, long, default_value = "60")]
         duration: u64,
     },
-    
+
     /// Cleanup all deployments
     Cleanup,
 }
@@ -53,9 +53,9 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
-    
+
     let cli = Cli::parse();
-    
+
     // Load or create default configuration
     let config = if cli.config.exists() {
         TestConfig::from_file(&cli.config)?
@@ -65,10 +65,10 @@ async fn main() -> anyhow::Result<()> {
         default_config.save_to_file(&cli.config)?;
         default_config
     };
-    
+
     let binary_path = cli.binary.clone();
     let runner = TestRunner::new(config.clone(), binary_path.clone());
-    
+
     match cli.command {
         Commands::Full => {
             runner.run_complete_test_suite().await?;
@@ -95,6 +95,6 @@ async fn main() -> anyhow::Result<()> {
             runner.cleanup().await?;
         }
     }
-    
+
     Ok(())
 }

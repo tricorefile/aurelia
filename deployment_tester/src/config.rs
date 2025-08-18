@@ -40,9 +40,15 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     /// 创建使用密钥认证的配置(兼容旧代码)
-    pub fn with_key(name: String, ip: String, port: u16, user: String, 
-                    ssh_key_path: PathBuf, remote_deploy_path: PathBuf, 
-                    role: ServerRole) -> Self {
+    pub fn with_key(
+        name: String,
+        ip: String,
+        port: u16,
+        user: String,
+        ssh_key_path: PathBuf,
+        remote_deploy_path: PathBuf,
+        role: ServerRole,
+    ) -> Self {
         Self {
             name,
             ip,
@@ -55,11 +61,17 @@ impl ServerConfig {
             role,
         }
     }
-    
+
     /// 创建使用密码认证的配置
-    pub fn with_password(name: String, ip: String, port: u16, user: String,
-                        password: String, remote_deploy_path: PathBuf,
-                        role: ServerRole) -> Self {
+    pub fn with_password(
+        name: String,
+        ip: String,
+        port: u16,
+        user: String,
+        password: String,
+        remote_deploy_path: PathBuf,
+        role: ServerRole,
+    ) -> Self {
         Self {
             name,
             ip,

@@ -1,4 +1,4 @@
-use deployment_tester::{TestConfig, DeploymentClient, AgentMonitor};
+use deployment_tester::{AgentMonitor, DeploymentClient, TestConfig};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -15,19 +15,22 @@ async fn test_config_serialization() {
     let config = TestConfig::default();
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("test_config.json");
-    
+
     config.save_to_file(&config_path).unwrap();
     assert!(config_path.exists());
-    
+
     let loaded_config = TestConfig::from_file(&config_path).unwrap();
-    assert_eq!(loaded_config.test_environments.len(), config.test_environments.len());
+    assert_eq!(
+        loaded_config.test_environments.len(),
+        config.test_environments.len()
+    );
 }
 
 #[cfg(test)]
 mod mock_tests {
     use super::*;
-    use deployment_tester::config::{ServerConfig, ServerRole, AuthMethod};
-    
+    use deployment_tester::config::{AuthMethod, ServerConfig, ServerRole};
+
     fn create_mock_server_config() -> ServerConfig {
         ServerConfig {
             name: "test-server".to_string(),
@@ -41,7 +44,7 @@ mod mock_tests {
             role: ServerRole::Primary,
         }
     }
-    
+
     #[test]
     fn test_server_config_creation() {
         let server = create_mock_server_config();
@@ -49,14 +52,14 @@ mod mock_tests {
         assert_eq!(server.ip, "127.0.0.1");
         assert!(matches!(server.role, ServerRole::Primary));
     }
-    
+
     #[test]
     fn test_deployment_client_creation() {
         let server = create_mock_server_config();
         let _client = DeploymentClient::new(server);
         // Client created successfully
     }
-    
+
     #[test]
     fn test_monitor_creation() {
         let server = create_mock_server_config();

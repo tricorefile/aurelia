@@ -1,5 +1,5 @@
 use common::{AppEvent, EventReceiver, EventSender, SystemState};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 use tokio::time::{self, Duration};
 
@@ -57,7 +57,9 @@ impl SurvivalProtocol {
         if runway_hours < MINIMUM_RUNWAY_HOURS && self.current_state == SystemState::Normal {
             warn!("[Survival Protocol] Runway is below threshold! Entering CONSERVATION mode.");
             self.change_system_state(SystemState::Conservation).await;
-        } else if runway_hours >= MINIMUM_RUNWAY_HOURS && self.current_state == SystemState::Conservation {
+        } else if runway_hours >= MINIMUM_RUNWAY_HOURS
+            && self.current_state == SystemState::Conservation
+        {
             info!("[Survival Protocol] Runway is healthy again. Returning to NORMAL mode.");
             self.change_system_state(SystemState::Normal).await;
         }
@@ -66,7 +68,10 @@ impl SurvivalProtocol {
     async fn change_system_state(&mut self, new_state: SystemState) {
         self.current_state = new_state.clone();
         if let Err(e) = self.tx.send(AppEvent::SystemStateChange(new_state)) {
-            error!("[Survival Protocol] Failed to send SystemStateChange event: {}", e);
+            error!(
+                "[Survival Protocol] Failed to send SystemStateChange event: {}",
+                e
+            );
         }
     }
 }

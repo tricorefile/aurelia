@@ -1,8 +1,8 @@
+use common::{AppEvent, EventReceiver, EventSender, SystemState, SystemVitals};
 use std::time::Duration;
-use sysinfo::{System};
-use common::{AppEvent, EventSender, SystemVitals, SystemState, EventReceiver};
+use sysinfo::System;
 
-use tracing::{info};
+use tracing::info;
 
 pub async fn run(tx: EventSender, mut rx: EventReceiver) {
     let mut sys = System::new_all();

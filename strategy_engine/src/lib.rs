@@ -4,7 +4,7 @@ use std::io::Write;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::time;
-use tracing::{info, error};
+use tracing::{error, info};
 
 const OUTPUT_FILE: &str = "strategy_output.log";
 
@@ -43,7 +43,11 @@ impl StrategyEngine {
 
     fn send_event_to_kernel(&self, event: AppEvent) {
         let json = serde_json::to_string(&event).unwrap();
-        match OpenOptions::new().append(true).create(true).open(OUTPUT_FILE) {
+        match OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(OUTPUT_FILE)
+        {
             Ok(mut file) => {
                 if let Err(e) = writeln!(file, "{}", json) {
                     error!("Failed to write to output file: {}", e);
@@ -60,7 +64,10 @@ pub extern "C" fn process_event_from_kernel(event_json: *const std::os::raw::c_c
     if let Ok(json_str) = c_str.to_str() {
         if let Ok(event) = serde_json::from_str::<AppEvent>(json_str) {
             // In a real implementation, you'd send this to the engine's main task via an internal channel.
-            info!("[Strategy Engine DLL] Received event from kernel: {:?}", event);
+            info!(
+                "[Strategy Engine DLL] Received event from kernel: {:?}",
+                event
+            );
         }
     }
 }

@@ -1,8 +1,10 @@
-pub mod simple_server;
 pub mod http_server;
+pub mod simple_server;
 
+pub use http_server::{
+    AgentStatus, ClusterStatus, MonitoringHttpService, SystemMetrics, TradingStatus,
+};
 pub use simple_server::SimpleAgentStatus;
-pub use http_server::{MonitoringHttpService, AgentStatus, ClusterStatus, SystemMetrics, TradingStatus};
 use simple_server::SimpleMonitoringService;
 
 #[derive(Debug, Clone)]
@@ -33,14 +35,14 @@ impl MonitoringService {
         } else {
             None
         };
-        
+
         Self {
             inner: SimpleMonitoringService::new(config.port),
             http_service,
             config,
         }
     }
-    
+
     pub async fn start(self: std::sync::Arc<Self>) -> anyhow::Result<()> {
         if self.config.use_http {
             if let Some(http_service) = &self.http_service {
@@ -55,7 +57,7 @@ impl MonitoringService {
         }
         Ok(())
     }
-    
+
     pub fn get_http_service(&self) -> Option<&MonitoringHttpService> {
         self.http_service.as_ref()
     }

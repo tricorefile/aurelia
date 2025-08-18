@@ -119,7 +119,7 @@ impl HealthMonitor {
 
     pub async fn start_monitoring(&self) {
         info!("Starting autonomous health monitoring");
-        
+
         loop {
             // Collect metrics
             if let Err(e) = self.collect_metrics().await {
@@ -142,13 +142,13 @@ impl HealthMonitor {
 
     async fn collect_metrics(&self) -> Result<()> {
         let metrics = self.collect_system_metrics().await?;
-        
+
         // Update current metrics
         *self.current_metrics.write().await = metrics.clone();
-        
+
         // Add to history
         self.metrics_history.write().await.push(metrics);
-        
+
         Ok(())
     }
 
@@ -161,7 +161,7 @@ impl HealthMonitor {
         let total_memory = sys.total_memory() as f64;
         let used_memory = sys.used_memory() as f64;
         let memory_usage = (used_memory / total_memory) * 100.0;
-        
+
         // Get disk usage
         let disk_usage = 30.0; // Placeholder for disk usage
 
@@ -202,19 +202,19 @@ impl HealthMonitor {
 
     async fn run_health_checks(&self) {
         let mut checks = self.health_checks.write().await;
-        
+
         // CPU Health Check
         self.check_cpu_health(&mut checks).await;
-        
+
         // Memory Health Check
         self.check_memory_health(&mut checks).await;
-        
+
         // Disk Health Check
         self.check_disk_health(&mut checks).await;
-        
+
         // Network Health Check
         self.check_network_health(&mut checks).await;
-        
+
         // Process Health Check
         self.check_process_health(&mut checks).await;
     }
@@ -222,7 +222,7 @@ impl HealthMonitor {
     async fn check_cpu_health(&self, checks: &mut HashMap<String, HealthCheck>) {
         let metrics = self.current_metrics.read().await;
         let cpu_usage = metrics.cpu_usage;
-        
+
         let status = if cpu_usage > self.thresholds.cpu_critical {
             HealthStatus::Critical(format!("CPU usage: {:.1}%", cpu_usage))
         } else if cpu_usage > self.thresholds.cpu_warning {
@@ -241,13 +241,15 @@ impl HealthMonitor {
 
         check.status = status;
         check.last_check = Utc::now();
-        check.details.insert("usage".to_string(), format!("{:.1}%", cpu_usage));
+        check
+            .details
+            .insert("usage".to_string(), format!("{:.1}%", cpu_usage));
     }
 
     async fn check_memory_health(&self, checks: &mut HashMap<String, HealthCheck>) {
         let metrics = self.current_metrics.read().await;
         let memory_usage = metrics.memory_usage;
-        
+
         let status = if memory_usage > self.thresholds.memory_critical {
             HealthStatus::Critical(format!("Memory usage: {:.1}%", memory_usage))
         } else if memory_usage > self.thresholds.memory_warning {
@@ -266,13 +268,15 @@ impl HealthMonitor {
 
         check.status = status;
         check.last_check = Utc::now();
-        check.details.insert("usage".to_string(), format!("{:.1}%", memory_usage));
+        check
+            .details
+            .insert("usage".to_string(), format!("{:.1}%", memory_usage));
     }
 
     async fn check_disk_health(&self, checks: &mut HashMap<String, HealthCheck>) {
         let metrics = self.current_metrics.read().await;
         let disk_usage = metrics.disk_usage;
-        
+
         let status = if disk_usage > self.thresholds.disk_critical {
             HealthStatus::Critical(format!("Disk usage: {:.1}%", disk_usage))
         } else if disk_usage > self.thresholds.disk_warning {
@@ -291,13 +295,15 @@ impl HealthMonitor {
 
         check.status = status;
         check.last_check = Utc::now();
-        check.details.insert("usage".to_string(), format!("{:.1}%", disk_usage));
+        check
+            .details
+            .insert("usage".to_string(), format!("{:.1}%", disk_usage));
     }
 
     async fn check_network_health(&self, checks: &mut HashMap<String, HealthCheck>) {
         let metrics = self.current_metrics.read().await;
         let latency = metrics.network_latency_ms;
-        
+
         let status = if latency > 100.0 {
             HealthStatus::Critical(format!("Network latency: {:.1}ms", latency))
         } else if latency > 50.0 {
@@ -316,13 +322,15 @@ impl HealthMonitor {
 
         check.status = status;
         check.last_check = Utc::now();
-        check.details.insert("latency".to_string(), format!("{:.1}ms", latency));
+        check
+            .details
+            .insert("latency".to_string(), format!("{:.1}ms", latency));
     }
 
     async fn check_process_health(&self, checks: &mut HashMap<String, HealthCheck>) {
         let metrics = self.current_metrics.read().await;
         let process_count = metrics.process_count;
-        
+
         let status = if process_count == 0 {
             HealthStatus::Failed("No processes running".to_string())
         } else if process_count > 100 {
@@ -331,23 +339,27 @@ impl HealthMonitor {
             HealthStatus::Healthy
         };
 
-        let check = checks.entry("processes".to_string()).or_insert(HealthCheck {
-            name: "Process Count".to_string(),
-            status: HealthStatus::Healthy,
-            last_check: Utc::now(),
-            consecutive_failures: 0,
-            details: HashMap::new(),
-        });
+        let check = checks
+            .entry("processes".to_string())
+            .or_insert(HealthCheck {
+                name: "Process Count".to_string(),
+                status: HealthStatus::Healthy,
+                last_check: Utc::now(),
+                consecutive_failures: 0,
+                details: HashMap::new(),
+            });
 
         check.status = status;
         check.last_check = Utc::now();
-        check.details.insert("count".to_string(), process_count.to_string());
+        check
+            .details
+            .insert("count".to_string(), process_count.to_string());
     }
 
     async fn analyze_health(&self) {
         let checks = self.health_checks.read().await;
         let metrics = self.current_metrics.read().await.clone();
-        
+
         for (name, check) in checks.iter() {
             match &check.status {
                 HealthStatus::Critical(msg) => {
@@ -357,7 +369,8 @@ impl HealthMonitor {
                         component: name.clone(),
                         message: msg.clone(),
                         metrics: Some(metrics.clone()),
-                    }).await;
+                    })
+                    .await;
                 }
                 HealthStatus::Failed(msg) => {
                     self.send_alert(HealthAlert {
@@ -366,7 +379,8 @@ impl HealthMonitor {
                         component: name.clone(),
                         message: msg.clone(),
                         metrics: Some(metrics.clone()),
-                    }).await;
+                    })
+                    .await;
                 }
                 HealthStatus::Degraded(msg) => {
                     debug!("Component {} degraded: {}", name, msg);
@@ -378,7 +392,7 @@ impl HealthMonitor {
 
     async fn send_alert(&self, alert: HealthAlert) {
         warn!("Health Alert: {:?}", alert);
-        
+
         let callbacks = self.alert_callbacks.read().await;
         for callback in callbacks.iter() {
             callback(alert.clone());
@@ -387,7 +401,7 @@ impl HealthMonitor {
 
     async fn cleanup_history(&self) {
         let mut history = self.metrics_history.write().await;
-        
+
         // Keep only last 24 hours of metrics
         let cutoff = Utc::now() - Duration::hours(24);
         history.retain(|m| m.timestamp > cutoff);
@@ -396,9 +410,9 @@ impl HealthMonitor {
     pub async fn get_current_health(&self) -> HealthSummary {
         let metrics = self.current_metrics.read().await.clone();
         let checks = self.health_checks.read().await.clone();
-        
+
         let overall_status = self.calculate_overall_status(&checks);
-        
+
         HealthSummary {
             status: overall_status,
             metrics,

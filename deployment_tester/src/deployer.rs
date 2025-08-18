@@ -1,4 +1,4 @@
-use crate::config::{ServerConfig, AuthMethod};
+use crate::config::{AuthMethod, ServerConfig};
 use anyhow::{Context, Result};
 use ssh2::Session;
 use std::fs;
@@ -18,72 +18,89 @@ impl DeploymentClient {
 
     pub fn connect(&self) -> Result<Session> {
         info!("Connecting to {}:{}...", self.config.ip, self.config.port);
-        
+
         let tcp = TcpStream::connect(format!("{}:{}", self.config.ip, self.config.port))
             .context("Failed to establish TCP connection")?;
-        
+
         let mut sess = Session::new().context("Failed to create SSH session")?;
         sess.set_tcp_stream(tcp);
-        
+
         // 执行SSH握手，添加更详细的错误信息
         if let Err(e) = sess.handshake() {
-            error!("SSH handshake failed for {}:{} - Error: {:?}", self.config.ip, self.config.port, e);
+            error!(
+                "SSH handshake failed for {}:{} - Error: {:?}",
+                self.config.ip, self.config.port, e
+            );
             return Err(anyhow::anyhow!("SSH handshake failed: {}", e));
         }
-        
+
         // 根据认证方式选择不同的认证方法
         match &self.config.auth_method {
             AuthMethod::Key => {
                 // 使用SSH密钥认证
-                let key_path = self.config.ssh_key_path.as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("SSH key path not provided for key authentication"))?;
+                let key_path = self.config.ssh_key_path.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("SSH key path not provided for key authentication")
+                })?;
                 let expanded_path = self.expand_tilde(key_path);
-                
+
                 info!("Authenticating with SSH key: {}", expanded_path.display());
-                sess.userauth_pubkey_file(
-                    &self.config.user,
-                    None,
-                    Path::new(&expanded_path),
-                    None,
-                ).context("SSH key authentication failed")?;
-            },
+                sess.userauth_pubkey_file(&self.config.user, None, Path::new(&expanded_path), None)
+                    .context("SSH key authentication failed")?;
+            }
             AuthMethod::Password => {
                 // 使用密码认证
-                let password = self.config.password.as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("Password not provided for password authentication"))?;
-                
-                info!("Authenticating with password for user: {} on {}:{}", 
-                      self.config.user, self.config.ip, self.config.port);
-                
+                let password = self.config.password.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("Password not provided for password authentication")
+                })?;
+
+                info!(
+                    "Authenticating with password for user: {} on {}:{}",
+                    self.config.user, self.config.ip, self.config.port
+                );
+
                 if let Err(e) = sess.userauth_password(&self.config.user, password) {
-                    error!("Password authentication failed for user {} - Error: {:?}", self.config.user, e);
+                    error!(
+                        "Password authentication failed for user {} - Error: {:?}",
+                        self.config.user, e
+                    );
                     return Err(anyhow::anyhow!("Password authentication failed: {}", e));
                 }
-            },
+            }
             AuthMethod::KeyWithPassphrase => {
                 // 使用带密码短语的密钥认证
-                let key_path = self.config.ssh_key_path.as_ref()
+                let key_path = self
+                    .config
+                    .ssh_key_path
+                    .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("SSH key path not provided"))?;
                 let expanded_path = self.expand_tilde(key_path);
-                let passphrase = self.config.password.as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("Passphrase not provided for encrypted key"))?;
-                
-                info!("Authenticating with encrypted SSH key: {}", expanded_path.display());
+                let passphrase =
+                    self.config.password.as_ref().ok_or_else(|| {
+                        anyhow::anyhow!("Passphrase not provided for encrypted key")
+                    })?;
+
+                info!(
+                    "Authenticating with encrypted SSH key: {}",
+                    expanded_path.display()
+                );
                 sess.userauth_pubkey_file(
                     &self.config.user,
                     None,
                     Path::new(&expanded_path),
                     Some(passphrase),
-                ).context("SSH key with passphrase authentication failed")?;
+                )
+                .context("SSH key with passphrase authentication failed")?;
             }
         }
-        
+
         if !sess.authenticated() {
             return Err(anyhow::anyhow!("SSH authentication failed"));
         }
-        
-        info!("Successfully connected to {} using {:?} authentication", 
-              self.config.ip, self.config.auth_method);
+
+        info!(
+            "Successfully connected to {} using {:?} authentication",
+            self.config.ip, self.config.auth_method
+        );
         Ok(sess)
     }
 
@@ -99,27 +116,27 @@ impl DeploymentClient {
 
     pub fn deploy_agent(&self, local_binary_path: &Path) -> Result<()> {
         info!("Starting deployment to {}...", self.config.name);
-        
+
         let sess = self.connect()?;
-        
+
         // Create remote directory
         self.create_remote_directory(&sess)?;
-        
+
         // Upload binary
         self.upload_file(&sess, local_binary_path, "kernel")?;
-        
+
         // Upload configuration files
         self.upload_config_files(&sess)?;
-        
+
         // Make binary executable
         self.make_executable(&sess, "kernel")?;
-        
+
         // Create startup script
         self.create_startup_script(&sess)?;
-        
+
         // Start the agent
         self.start_agent(&sess)?;
-        
+
         info!("Deployment to {} completed successfully", self.config.name);
         Ok(())
     }
@@ -130,7 +147,7 @@ impl DeploymentClient {
         let mut output = String::new();
         channel.read_to_string(&mut output)?;
         channel.wait_close()?;
-        
+
         let exit_status = channel.exit_status()?;
         if exit_status != 0 {
             return Err(anyhow::anyhow!(
@@ -139,19 +156,22 @@ impl DeploymentClient {
                 output
             ));
         }
-        
+
         Ok(output)
     }
 
     fn create_remote_directory(&self, sess: &Session) -> Result<()> {
-        info!("Creating remote directory: {:?}", self.config.remote_deploy_path);
+        info!(
+            "Creating remote directory: {:?}",
+            self.config.remote_deploy_path
+        );
         let cmd = format!("mkdir -p {:?}", self.config.remote_deploy_path);
         self.execute_command(sess, &cmd)?;
-        
+
         let config_dir = self.config.remote_deploy_path.join("config");
         let cmd = format!("mkdir -p {:?}", config_dir);
         self.execute_command(sess, &cmd)?;
-        
+
         Ok(())
     }
 
@@ -159,19 +179,14 @@ impl DeploymentClient {
         if !local_path.exists() {
             return Err(anyhow::anyhow!("Local file not found: {:?}", local_path));
         }
-        
+
         let remote_path = self.config.remote_deploy_path.join(remote_name);
         info!("Uploading {:?} to {:?}", local_path, remote_path);
-        
+
         let data = fs::read(local_path)?;
-        let mut remote_file = sess.scp_send(
-            &remote_path,
-            0o644,
-            data.len() as u64,
-            None,
-        )?;
+        let mut remote_file = sess.scp_send(&remote_path, 0o644, data.len() as u64, None)?;
         remote_file.write_all(&data)?;
-        
+
         Ok(())
     }
 
@@ -182,16 +197,12 @@ impl DeploymentClient {
              BINANCE_API_SECRET=test_api_secret\n\
              DEPLOYMENT_MODE=test\n"
         );
-        
+
         let remote_env_path = self.config.remote_deploy_path.join(".env");
-        let mut remote_file = sess.scp_send(
-            &remote_env_path,
-            0o644,
-            env_content.len() as u64,
-            None,
-        )?;
+        let mut remote_file =
+            sess.scp_send(&remote_env_path, 0o644, env_content.len() as u64, None)?;
         remote_file.write_all(env_content.as_bytes())?;
-        
+
         // Upload strategy.json
         let strategy_content = r#"{
             "strategy_type": "momentum",
@@ -200,7 +211,7 @@ impl DeploymentClient {
             "lookback_periods": 20,
             "threshold": 0.02
         }"#;
-        
+
         let remote_strategy_path = self.config.remote_deploy_path.join("config/strategy.json");
         let mut remote_file = sess.scp_send(
             &remote_strategy_path,
@@ -209,23 +220,19 @@ impl DeploymentClient {
             None,
         )?;
         remote_file.write_all(strategy_content.as_bytes())?;
-        
+
         // Upload state.json
         let state_content = r#"{
             "funds": 1000.0,
             "positions": {},
             "last_update": null
         }"#;
-        
+
         let remote_state_path = self.config.remote_deploy_path.join("config/state.json");
-        let mut remote_file = sess.scp_send(
-            &remote_state_path,
-            0o644,
-            state_content.len() as u64,
-            None,
-        )?;
+        let mut remote_file =
+            sess.scp_send(&remote_state_path, 0o644, state_content.len() as u64, None)?;
         remote_file.write_all(state_content.as_bytes())?;
-        
+
         Ok(())
     }
 
@@ -245,7 +252,7 @@ impl DeploymentClient {
              echo \"Agent started with PID: $(cat aurelia.pid)\"\n",
             self.config.remote_deploy_path
         );
-        
+
         let remote_script_path = self.config.remote_deploy_path.join("start_agent.sh");
         let mut remote_file = sess.scp_send(
             &remote_script_path,
@@ -254,7 +261,7 @@ impl DeploymentClient {
             None,
         )?;
         remote_file.write_all(script_content.as_bytes())?;
-        
+
         Ok(())
     }
 
@@ -282,10 +289,7 @@ impl DeploymentClient {
 
     pub fn cleanup(&self) -> Result<()> {
         let sess = self.connect()?;
-        let cmd = format!(
-            "rm -rf {:?}",
-            self.config.remote_deploy_path
-        );
+        let cmd = format!("rm -rf {:?}", self.config.remote_deploy_path);
         self.execute_command(&sess, &cmd)?;
         info!("Cleaned up deployment on {}", self.config.name);
         Ok(())
@@ -303,11 +307,13 @@ impl DeploymentClient {
     }
 
     pub fn trigger_self_replication(&self, target_server: &ServerConfig) -> Result<()> {
-        info!("Triggering self-replication from {} to {}", 
-              self.config.name, target_server.name);
-        
+        info!(
+            "Triggering self-replication from {} to {}",
+            self.config.name, target_server.name
+        );
+
         let sess = self.connect()?;
-        
+
         let deploy_info = serde_json::json!({
             "ip": target_server.ip,
             "remote_user": target_server.user,
@@ -315,18 +321,14 @@ impl DeploymentClient {
             "remote_path": target_server.remote_deploy_path,
             "local_exe_path": "./kernel"
         });
-        
+
         let deploy_json = serde_json::to_string_pretty(&deploy_info)?;
         let trigger_path = self.config.remote_deploy_path.join("deploy_trigger.json");
-        
-        let mut remote_file = sess.scp_send(
-            &trigger_path,
-            0o644,
-            deploy_json.len() as u64,
-            None,
-        )?;
+
+        let mut remote_file =
+            sess.scp_send(&trigger_path, 0o644, deploy_json.len() as u64, None)?;
         remote_file.write_all(deploy_json.as_bytes())?;
-        
+
         info!("Self-replication trigger sent");
         Ok(())
     }

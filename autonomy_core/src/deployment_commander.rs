@@ -1,13 +1,13 @@
+use crate::server_config::{ServerConfig, TargetServer};
+use crate::ssh_deployer::{AuthMethod, SshDeployer};
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
-use crate::ssh_deployer::{SshDeployer, AuthMethod};
-use crate::server_config::{ServerConfig, TargetServer};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Deployment status for tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,7 +66,7 @@ impl DeploymentCommander {
                     keepalive_interval_seconds: 60,
                 },
             });
-        
+
         let mut deployment_status = HashMap::new();
         for server in &config.target_servers {
             deployment_status.insert(
@@ -78,7 +78,7 @@ impl DeploymentCommander {
                     last_attempt: None,
                     last_success: None,
                     error_message: None,
-                }
+                },
             );
         }
 
@@ -86,30 +86,30 @@ impl DeploymentCommander {
             config: Arc::new(RwLock::new(config)),
             deployment_status: Arc::new(RwLock::new(deployment_status)),
             binary_path,
-            config_files: vec![
-                PathBuf::from("config/target_servers.json"),
-            ],
+            config_files: vec![PathBuf::from("config/target_servers.json")],
         }
     }
 
     /// Deploy to a specific server by ID
     pub async fn deploy_to_server(&self, server_id: &str) -> Result<()> {
         let config = self.config.read().await;
-        let server = config.target_servers
+        let server = config
+            .target_servers
             .iter()
             .find(|s| s.id == server_id)
             .ok_or_else(|| anyhow::anyhow!("Server {} not found", server_id))?
             .clone();
-        
+
         drop(config); // Release the lock
-        
+
         self.deploy_to_target(server).await
     }
 
     /// Deploy to all enabled servers
     pub async fn deploy_to_all(&self) -> Result<Vec<(String, Result<()>)>> {
         let config = self.config.read().await;
-        let servers: Vec<_> = config.target_servers
+        let servers: Vec<_> = config
+            .target_servers
             .iter()
             .filter(|s| s.enabled)
             .cloned()
@@ -127,9 +127,13 @@ impl DeploymentCommander {
     }
 
     /// Deploy to high-priority servers
-    pub async fn deploy_to_priority_servers(&self, min_priority: u32) -> Result<Vec<(String, Result<()>)>> {
+    pub async fn deploy_to_priority_servers(
+        &self,
+        min_priority: u32,
+    ) -> Result<Vec<(String, Result<()>)>> {
         let config = self.config.read().await;
-        let servers: Vec<_> = config.target_servers
+        let servers: Vec<_> = config
+            .target_servers
             .iter()
             .filter(|s| s.enabled && s.priority <= min_priority)
             .cloned()
@@ -149,7 +153,7 @@ impl DeploymentCommander {
     /// Internal deployment logic
     async fn deploy_to_target(&self, server: TargetServer) -> Result<()> {
         info!("Starting deployment to {} ({})", server.name, server.ip);
-        
+
         // Update status to deploying
         {
             let mut status = self.deployment_status.write().await;
@@ -161,26 +165,23 @@ impl DeploymentCommander {
 
         // Create SSH deployer
         let mut deployer = SshDeployer::new();
-        
+
         // Determine authentication method
         let auth = match server.auth_method {
             crate::server_config::AuthMethod::Password => {
-                let password = server.get_password()
+                let password = server
+                    .get_password()
                     .ok_or_else(|| anyhow::anyhow!("Password not available for {}", server.name))?;
                 AuthMethod::Password(password)
             }
-            crate::server_config::AuthMethod::Key => {
-                AuthMethod::Key {
-                    path: server.get_expanded_ssh_key_path(),
-                    passphrase: None,
-                }
-            }
-            crate::server_config::AuthMethod::KeyWithPassphrase => {
-                AuthMethod::Key {
-                    path: server.get_expanded_ssh_key_path(),
-                    passphrase: server.get_password(),
-                }
-            }
+            crate::server_config::AuthMethod::Key => AuthMethod::Key {
+                path: server.get_expanded_ssh_key_path(),
+                passphrase: None,
+            },
+            crate::server_config::AuthMethod::KeyWithPassphrase => AuthMethod::Key {
+                path: server.get_expanded_ssh_key_path(),
+                passphrase: server.get_password(),
+            },
         };
 
         // Perform deployment
@@ -221,7 +222,8 @@ impl DeploymentCommander {
     /// Check status of a deployed server
     pub async fn check_server_status(&self, server_id: &str) -> Result<bool> {
         let config = self.config.read().await;
-        let server = config.target_servers
+        let server = config
+            .target_servers
             .iter()
             .find(|s| s.id == server_id)
             .ok_or_else(|| anyhow::anyhow!("Server {} not found", server_id))?
@@ -229,21 +231,27 @@ impl DeploymentCommander {
         drop(config);
 
         let mut deployer = SshDeployer::new();
-        
+
         // Connect
         match server.auth_method {
             crate::server_config::AuthMethod::Password => {
-                let password = server.get_password()
+                let password = server
+                    .get_password()
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
-                deployer.connect_with_password(&server.ip, server.port as u16, &server.username, &password)?;
+                deployer.connect_with_password(
+                    &server.ip,
+                    server.port as u16,
+                    &server.username,
+                    &password,
+                )?;
             }
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
-                    &server.ip, 
-                    server.port as u16, 
-                    &server.username, 
+                    &server.ip,
+                    server.port as u16,
+                    &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    None
+                    None,
                 )?;
             }
             crate::server_config::AuthMethod::KeyWithPassphrase => {
@@ -252,7 +260,7 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    server.get_password().as_deref()
+                    server.get_password().as_deref(),
                 )?;
             }
         }
@@ -264,7 +272,8 @@ impl DeploymentCommander {
     /// Get logs from a server
     pub async fn get_server_logs(&self, server_id: &str, lines: usize) -> Result<String> {
         let config = self.config.read().await;
-        let server = config.target_servers
+        let server = config
+            .target_servers
             .iter()
             .find(|s| s.id == server_id)
             .ok_or_else(|| anyhow::anyhow!("Server {} not found", server_id))?
@@ -272,13 +281,19 @@ impl DeploymentCommander {
         drop(config);
 
         let mut deployer = SshDeployer::new();
-        
+
         // Connect
         match server.auth_method {
             crate::server_config::AuthMethod::Password => {
-                let password = server.get_password()
+                let password = server
+                    .get_password()
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
-                deployer.connect_with_password(&server.ip, server.port as u16, &server.username, &password)?;
+                deployer.connect_with_password(
+                    &server.ip,
+                    server.port as u16,
+                    &server.username,
+                    &password,
+                )?;
             }
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
@@ -286,7 +301,7 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    None
+                    None,
                 )?;
             }
             crate::server_config::AuthMethod::KeyWithPassphrase => {
@@ -295,7 +310,7 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    server.get_password().as_deref()
+                    server.get_password().as_deref(),
                 )?;
             }
         }
@@ -307,7 +322,8 @@ impl DeploymentCommander {
     /// Stop kernel on a server
     pub async fn stop_server(&self, server_id: &str) -> Result<()> {
         let config = self.config.read().await;
-        let server = config.target_servers
+        let server = config
+            .target_servers
             .iter()
             .find(|s| s.id == server_id)
             .ok_or_else(|| anyhow::anyhow!("Server {} not found", server_id))?
@@ -315,13 +331,19 @@ impl DeploymentCommander {
         drop(config);
 
         let mut deployer = SshDeployer::new();
-        
+
         // Connect
         match server.auth_method {
             crate::server_config::AuthMethod::Password => {
-                let password = server.get_password()
+                let password = server
+                    .get_password()
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
-                deployer.connect_with_password(&server.ip, server.port as u16, &server.username, &password)?;
+                deployer.connect_with_password(
+                    &server.ip,
+                    server.port as u16,
+                    &server.username,
+                    &password,
+                )?;
             }
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
@@ -329,7 +351,7 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    None
+                    None,
                 )?;
             }
             crate::server_config::AuthMethod::KeyWithPassphrase => {
@@ -338,14 +360,14 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    server.get_password().as_deref()
+                    server.get_password().as_deref(),
                 )?;
             }
         }
 
         // Stop kernel
         deployer.stop_kernel()?;
-        
+
         // Update status
         {
             let mut status = self.deployment_status.write().await;
@@ -365,7 +387,7 @@ impl DeploymentCommander {
     /// Reload configuration from file
     pub async fn reload_config(&mut self) -> Result<()> {
         let new_config = ServerConfig::from_file(Path::new("config/target_servers.json"))?;
-        
+
         // Update deployment status for new servers
         let mut status = self.deployment_status.write().await;
         for server in &new_config.target_servers {
@@ -379,7 +401,7 @@ impl DeploymentCommander {
                         last_attempt: None,
                         last_success: None,
                         error_message: None,
-                    }
+                    },
                 );
             }
         }
@@ -393,7 +415,8 @@ impl DeploymentCommander {
     /// Execute a command on all deployed servers
     pub async fn execute_on_all(&self, command: &str) -> Result<Vec<(String, Result<String>)>> {
         let config = self.config.read().await;
-        let servers: Vec<_> = config.target_servers
+        let servers: Vec<_> = config
+            .target_servers
             .iter()
             .filter(|s| s.enabled)
             .cloned()
@@ -412,7 +435,8 @@ impl DeploymentCommander {
     /// Execute a command on a specific server
     async fn execute_on_server(&self, server_id: &str, command: &str) -> Result<String> {
         let config = self.config.read().await;
-        let server = config.target_servers
+        let server = config
+            .target_servers
             .iter()
             .find(|s| s.id == server_id)
             .ok_or_else(|| anyhow::anyhow!("Server {} not found", server_id))?
@@ -420,13 +444,19 @@ impl DeploymentCommander {
         drop(config);
 
         let mut deployer = SshDeployer::new();
-        
+
         // Connect
         match server.auth_method {
             crate::server_config::AuthMethod::Password => {
-                let password = server.get_password()
+                let password = server
+                    .get_password()
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
-                deployer.connect_with_password(&server.ip, server.port as u16, &server.username, &password)?;
+                deployer.connect_with_password(
+                    &server.ip,
+                    server.port as u16,
+                    &server.username,
+                    &password,
+                )?;
             }
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
@@ -434,7 +464,7 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    None
+                    None,
                 )?;
             }
             crate::server_config::AuthMethod::KeyWithPassphrase => {
@@ -443,7 +473,7 @@ impl DeploymentCommander {
                     server.port as u16,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
-                    server.get_password().as_deref()
+                    server.get_password().as_deref(),
                 )?;
             }
         }

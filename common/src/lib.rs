@@ -35,9 +35,9 @@ pub enum SystemState {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum StrategyDecision {
-    Buy(String, f64), // Symbol, Price
+    Buy(String, f64),  // Symbol, Price
     Sell(String, f64), // Symbol, Price
-    Hold(String), // Symbol
+    Hold(String),      // Symbol
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

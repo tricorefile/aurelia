@@ -1,35 +1,44 @@
-use tokio::{sync::broadcast, task::{self, JoinHandle}, time::{self, Duration}};
+use autonomy_core::AutonomousAgent;
 use common::AppEvent;
+use execution_engine::ExecutionEngine;
 use libloading::{Library, Symbol};
+use metamorphosis_engine::MetamorphosisEngine;
+use monitoring_service::{MonitoringConfig, MonitoringService};
+use perception_core::run as run_perception_core;
+use reasoning_engine::ReasoningEngine;
+use resource_monitor::run as run_resource_monitor;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Arc;
-use metamorphosis_engine::MetamorphosisEngine;
-use resource_monitor::run as run_resource_monitor;
-use perception_core::run as run_perception_core;
-use reasoning_engine::ReasoningEngine;
-use execution_engine::ExecutionEngine;
 use survival_protocol::SurvivalProtocol;
-use autonomy_core::AutonomousAgent;
-use monitoring_service::{MonitoringService, MonitoringConfig};
+use tokio::{
+    sync::broadcast,
+    task::{self, JoinHandle},
+    time::{self, Duration},
+};
 
 type ModuleRunFn = unsafe extern "C" fn();
 
 struct DynamicModule {
-    task_handle: JoinHandle<()>
+    task_handle: JoinHandle<()>,
 }
 
 impl DynamicModule {
     fn new(lib_path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         let handle = task::spawn_blocking(move || {
-            let lib = unsafe { Library::new(&lib_path).expect("Library loading failed inside thread") };
+            let lib =
+                unsafe { Library::new(&lib_path).expect("Library loading failed inside thread") };
             unsafe {
-                let run_func: Symbol<ModuleRunFn> = lib.get(b"run_strategy_engine").expect("Symbol loading failed inside thread");
+                let run_func: Symbol<ModuleRunFn> = lib
+                    .get(b"run_strategy_engine")
+                    .expect("Symbol loading failed inside thread");
                 run_func();
             }
         });
-        Ok(Self { task_handle: handle })
+        Ok(Self {
+            task_handle: handle,
+        })
     }
 
     fn shutdown(&self) {
@@ -44,16 +53,21 @@ async fn main() {
 
     let (tx, mut rx) = broadcast::channel::<AppEvent>(100);
 
-    let initial_lib_path = PathBuf::from(if cfg!(target_os = "linux") { "target/debug/libstrategy_engine.so" }
-        else if cfg!(target_os = "macos") { "target/debug/libstrategy_engine.dylib" }
-        else { "target/debug/strategy_engine.dll" });
-    
+    let initial_lib_path = PathBuf::from(if cfg!(target_os = "linux") {
+        "target/debug/libstrategy_engine.so"
+    } else if cfg!(target_os = "macos") {
+        "target/debug/libstrategy_engine.dylib"
+    } else {
+        "target/debug/strategy_engine.dll"
+    });
+
     let mut strategy_module = Some(DynamicModule::new(initial_lib_path)
         .expect("Failed to load initial strategy engine. Please run 'cargo build -p strategy_engine' first."));
     tracing::info!("Strategy Engine (initial) started.");
 
     // --- Spawn all other modules correctly ---
-    let rm_tx = tx.clone(); let rm_rx = tx.subscribe();
+    let rm_tx = tx.clone();
+    let rm_rx = tx.subscribe();
     task::spawn(run_resource_monitor(rm_tx, rm_rx));
     let pc_tx = tx.clone();
     task::spawn(run_perception_core(pc_tx));
@@ -73,16 +87,16 @@ async fn main() {
     task::spawn(async move { sp.run().await });
     let mut me = MetamorphosisEngine::new(tx.clone());
     task::spawn(async move { me.run().await });
-    
+
     // --- Start Autonomous Agent ---
     let binary_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("./kernel"));
     let autonomous_agent = Arc::new(AutonomousAgent::new(binary_path));
-    
+
     // Initialize the autonomous agent
     if let Err(e) = autonomous_agent.initialize().await {
         tracing::error!("Failed to initialize autonomous agent: {}", e);
     }
-    
+
     // Start autonomous operations
     let agent_handle = {
         let agent = autonomous_agent.clone();
@@ -92,14 +106,14 @@ async fn main() {
             }
         })
     };
-    
+
     // --- Start Monitoring Service ---
     let monitoring_config = MonitoringConfig {
         port: 8080,
         use_http: true,
     };
     let monitoring_service = Arc::new(MonitoringService::new(monitoring_config));
-    
+
     // 启动监控服务
     let monitoring_handle = {
         let service = monitoring_service.clone();
@@ -110,7 +124,7 @@ async fn main() {
             }
         })
     };
-    
+
     // 订阅事件并更新监控数据
     let monitoring_tx = tx.clone();
     let mut monitoring_rx = tx.subscribe();
@@ -120,30 +134,30 @@ async fn main() {
             if let Some(http_service) = monitoring_service_clone.get_http_service() {
                 match &event {
                     AppEvent::MarketData(data) => {
-                        http_service.update_trading_status(
-                            true,
-                            Some(data.symbol.clone()),
-                            Some(data.price)
-                        ).await;
-                    },
-                    AppEvent::StrategyDecision(decision) => {
-                        match decision {
-                            common::StrategyDecision::Buy(symbol, price) |
-                            common::StrategyDecision::Sell(symbol, price) => {
-                                http_service.record_trade(true).await;
-                            },
-                            _ => {}
+                        http_service
+                            .update_trading_status(
+                                true,
+                                Some(data.symbol.clone()),
+                                Some(data.price),
+                            )
+                            .await;
+                    }
+                    AppEvent::StrategyDecision(decision) => match decision {
+                        common::StrategyDecision::Buy(symbol, price)
+                        | common::StrategyDecision::Sell(symbol, price) => {
+                            http_service.record_trade(true).await;
                         }
+                        _ => {}
                     },
                     AppEvent::FinancialUpdate(pnl) => {
                         http_service.update_pnl(*pnl).await;
-                    },
+                    }
                     _ => {}
                 }
             }
         }
     });
-    
+
     tracing::info!("📊 Rust Monitoring API available at: http://localhost:8080");
     tracing::info!("📊 API Endpoints:");
     tracing::info!("   - http://localhost:8080/api/status");

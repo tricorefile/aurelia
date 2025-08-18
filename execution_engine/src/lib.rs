@@ -70,7 +70,11 @@ impl Deployer for SshDeployer {
 }
 
 impl SshDeployer {
-    fn exec_command(&self, sess: &mut Session, cmd: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn exec_command(
+        &self,
+        sess: &mut Session,
+        cmd: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut channel = sess.channel_session()?;
         channel.exec(cmd)?;
         // Reading the output is important to ensure the command has finished.
@@ -107,9 +111,13 @@ impl SshDeployer {
                 continue;
             }
 
-            info!("[Deployment] Uploading {:?} to {}", local_path, remote_path_str);
+            info!(
+                "[Deployment] Uploading {:?} to {}",
+                local_path, remote_path_str
+            );
             let data = fs::read(&local_path)?;
-            let mut remote_file = sess.scp_send(Path::new(&remote_path_str), 0o644, data.len() as u64, None)?;
+            let mut remote_file =
+                sess.scp_send(Path::new(&remote_path_str), 0o644, data.len() as u64, None)?;
             remote_file.write_all(&data)?;
         }
         Ok(())
@@ -129,7 +137,7 @@ impl ExecutionEngine {
     pub fn new(tx: EventSender, rx: EventReceiver, deployer: Box<dyn Deployer>) -> Self {
         // Try to load .env file but don't panic if it doesn't exist
         let _ = dotenv();
-        
+
         // Use default values for tests or when env vars are not set
         let api_key = env::var("BINANCE_API_KEY").unwrap_or_else(|_| {
             warn!("BINANCE_API_KEY not set, using placeholder");
@@ -156,9 +164,7 @@ impl ExecutionEngine {
         info!("[Execution Engine] Starting...");
         loop {
             match self.rx.recv().await {
-                Ok(AppEvent::StrategyDecision(decision)) => {
-                    self.handle_decision(decision).await
-                }
+                Ok(AppEvent::StrategyDecision(decision)) => self.handle_decision(decision).await,
                 Ok(AppEvent::Deploy(info)) => {
                     if let Err(e) = self.deployer.deploy(info) {
                         error!("[Execution Engine] Deployment failed: {}", e);
@@ -207,7 +213,7 @@ impl ExecutionEngine {
             "symbol={}&side={}&type=LIMIT&timeInForce=GTC&quantity={}&price={}&timestamp={}",
             symbol, side, quantity, price, timestamp
         );
-        
+
         let signature = {
             use hmac::{Hmac, Mac};
             use sha2::Sha256;

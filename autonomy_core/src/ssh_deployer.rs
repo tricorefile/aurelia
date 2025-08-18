@@ -34,36 +34,32 @@ impl SshDeployer {
         passphrase: Option<&str>,
     ) -> Result<()> {
         info!("Connecting to {}:{} as user {}", host, port, username);
-        
+
         // Establish TCP connection
         let tcp = TcpStream::connect(format!("{}:{}", host, port))
             .context("Failed to establish TCP connection")?;
-        
+
         self.session.set_tcp_stream(tcp);
-        self.session.handshake()
-            .context("SSH handshake failed")?;
+        self.session.handshake().context("SSH handshake failed")?;
 
         // Try public key authentication
         if private_key_path.exists() {
             info!("Authenticating with SSH key: {:?}", private_key_path);
-            
+
             if let Some(pass) = passphrase {
-                self.session.userauth_pubkey_file(
-                    username,
-                    None,
-                    private_key_path,
-                    Some(pass)
-                ).context("SSH key authentication with passphrase failed")?;
+                self.session
+                    .userauth_pubkey_file(username, None, private_key_path, Some(pass))
+                    .context("SSH key authentication with passphrase failed")?;
             } else {
-                self.session.userauth_pubkey_file(
-                    username,
-                    None,
-                    private_key_path,
-                    None
-                ).context("SSH key authentication failed")?;
+                self.session
+                    .userauth_pubkey_file(username, None, private_key_path, None)
+                    .context("SSH key authentication failed")?;
             }
         } else {
-            return Err(anyhow::anyhow!("SSH key file not found: {:?}", private_key_path));
+            return Err(anyhow::anyhow!(
+                "SSH key file not found: {:?}",
+                private_key_path
+            ));
         }
 
         if !self.session.authenticated() {
@@ -83,18 +79,21 @@ impl SshDeployer {
         username: &str,
         password: &str,
     ) -> Result<()> {
-        info!("Connecting to {}:{} as user {} with password", host, port, username);
-        
+        info!(
+            "Connecting to {}:{} as user {} with password",
+            host, port, username
+        );
+
         // Establish TCP connection
         let tcp = TcpStream::connect(format!("{}:{}", host, port))
             .context("Failed to establish TCP connection")?;
-        
+
         self.session.set_tcp_stream(tcp);
-        self.session.handshake()
-            .context("SSH handshake failed")?;
+        self.session.handshake().context("SSH handshake failed")?;
 
         // Password authentication
-        self.session.userauth_password(username, password)
+        self.session
+            .userauth_password(username, password)
             .context("Password authentication failed")?;
 
         if !self.session.authenticated() {
@@ -112,23 +111,25 @@ impl SshDeployer {
             return Err(anyhow::anyhow!("Not connected to remote server"));
         }
 
-        let mut channel = self.session.channel_session()
+        let mut channel = self
+            .session
+            .channel_session()
             .context("Failed to create SSH channel")?;
-        
-        channel.exec(command)
-            .context("Failed to execute command")?;
-        
+
+        channel.exec(command).context("Failed to execute command")?;
+
         let mut output = String::new();
-        channel.read_to_string(&mut output)
+        channel
+            .read_to_string(&mut output)
             .context("Failed to read command output")?;
-        
+
         channel.wait_close()?;
         let exit_status = channel.exit_status()?;
-        
+
         if exit_status != 0 {
             warn!("Command '{}' exited with status {}", command, exit_status);
         }
-        
+
         Ok(output)
     }
 
@@ -150,24 +151,30 @@ impl SshDeployer {
 
         // Initialize SFTP if not already done
         if self.sftp.is_none() {
-            self.sftp = Some(self.session.sftp().context("Failed to create SFTP session")?);
+            self.sftp = Some(
+                self.session
+                    .sftp()
+                    .context("Failed to create SFTP session")?,
+            );
         }
-        
+
         let sftp = self.sftp.as_ref().unwrap();
 
         // Read local file
-        let mut local_file = File::open(local_path)
-            .context("Failed to open local file")?;
+        let mut local_file = File::open(local_path).context("Failed to open local file")?;
         let mut contents = Vec::new();
-        local_file.read_to_end(&mut contents)
+        local_file
+            .read_to_end(&mut contents)
             .context("Failed to read local file")?;
 
         // Create remote file
-        let mut remote_file = sftp.create(Path::new(remote_path))
+        let mut remote_file = sftp
+            .create(Path::new(remote_path))
             .context("Failed to create remote file")?;
-        
+
         // Write contents
-        remote_file.write_all(&contents)
+        remote_file
+            .write_all(&contents)
             .context("Failed to write to remote file")?;
 
         info!("Successfully uploaded {} bytes", contents.len());
@@ -217,7 +224,7 @@ impl SshDeployer {
 
         // Stop any existing instance
         let _ = self.execute_command("pkill -f kernel");
-        
+
         // Start new instance in background
         let start_command = format!(
             "cd {} && nohup ./kernel > logs/aurelia.log 2>&1 &",
@@ -228,7 +235,7 @@ impl SshDeployer {
         // Verify it started
         std::thread::sleep(std::time::Duration::from_secs(2));
         let check_output = self.execute_command("ps aux | grep kernel | grep -v grep")?;
-        
+
         if check_output.trim().is_empty() {
             return Err(anyhow::anyhow!("Kernel failed to start"));
         }
@@ -254,7 +261,8 @@ impl SshDeployer {
     pub fn setup_systemd_service(&self, remote_path: &str, username: &str) -> Result<()> {
         info!("Setting up systemd service");
 
-        let service_content = format!(r#"[Unit]
+        let service_content = format!(
+            r#"[Unit]
 Description=Aurelia Autonomous Trading System
 After=network.target
 
@@ -270,24 +278,29 @@ StandardError=append:{}/logs/aurelia.error.log
 
 [Install]
 WantedBy=multi-user.target
-"#, username, remote_path, remote_path, remote_path, remote_path);
+"#,
+            username, remote_path, remote_path, remote_path, remote_path
+        );
 
         // Write service file
         let temp_service = "/tmp/aurelia.service";
         self.execute_command(&format!("echo '{}' > {}", service_content, temp_service))?;
-        
+
         // Move to systemd directory and reload
         self.execute_command(&format!("sudo mv {} /etc/systemd/system/", temp_service))?;
         self.execute_command("sudo systemctl daemon-reload")?;
         self.execute_command("sudo systemctl enable aurelia")?;
-        
+
         info!("Systemd service setup completed");
         Ok(())
     }
 
     /// Get logs from remote server
     pub fn get_logs(&self, remote_path: &str, lines: usize) -> Result<String> {
-        let command = format!("tail -n {} {}/logs/aurelia.log 2>/dev/null || echo 'No logs found'", lines, remote_path);
+        let command = format!(
+            "tail -n {} {}/logs/aurelia.log 2>/dev/null || echo 'No logs found'",
+            lines, remote_path
+        );
         self.execute_command(&command)
     }
 

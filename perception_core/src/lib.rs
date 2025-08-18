@@ -1,8 +1,8 @@
+use common::{AppEvent, EventSender, MarketData};
 use futures_util::{pin_mut, stream::StreamExt};
 use rustls::crypto::CryptoProvider;
 use serde::Deserialize;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use common::{AppEvent, EventSender, MarketData};
 
 #[derive(Debug, Deserialize)]
 pub struct BinanceTrade {
@@ -26,7 +26,9 @@ pub async fn run(tx: EventSender) {
     let (ws_stream, _) = connect_async(BINANCE_WS_API)
         .await
         .expect("Failed to connect to WebSocket");
-    tracing::info!("[Perception Core] Connection to Binance WebSocket successful. Awaiting market data...");
+    tracing::info!(
+        "[Perception Core] Connection to Binance WebSocket successful. Awaiting market data..."
+    );
 
     let (_write, read) = ws_stream.split();
     pin_mut!(read);

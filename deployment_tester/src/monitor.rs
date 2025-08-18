@@ -62,7 +62,9 @@ impl AgentMonitor {
                 result.cpu_usage = Some(metrics.cpu_percent);
                 result.memory_mb = Some(metrics.memory_mb);
             }
-            Err(e) => result.errors.push(format!("Resource metrics failed: {}", e)),
+            Err(e) => result
+                .errors
+                .push(format!("Resource metrics failed: {}", e)),
         }
 
         // Check log activity
@@ -89,19 +91,19 @@ impl AgentMonitor {
             "cd {:?} && if [ -f aurelia.pid ]; then ps -p $(cat aurelia.pid) > /dev/null 2>&1 && echo 'RUNNING' || echo 'STOPPED'; else echo 'NO_PID'; fi",
             self.config.remote_deploy_path
         );
-        
+
         let output = self.client.execute_command(&sess, &cmd)?;
         Ok(output.contains("RUNNING"))
     }
 
     pub fn get_resource_metrics(&self) -> Result<ResourceMetrics> {
         let sess = self.client.connect()?;
-        
+
         // Get CPU usage
         let cpu_cmd = "top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1";
         let cpu_output = self.client.execute_command(&sess, cpu_cmd)?;
         let cpu_percent = cpu_output.trim().parse::<f64>().unwrap_or(0.0);
-        
+
         // Get memory usage for the kernel process
         let mem_cmd = format!(
             "cd {:?} && if [ -f aurelia.pid ]; then ps aux | grep $(cat aurelia.pid) | grep -v grep | awk '{{print $6}}'; else echo '0'; fi",
@@ -110,7 +112,7 @@ impl AgentMonitor {
         let mem_output = self.client.execute_command(&sess, &mem_cmd)?;
         let memory_kb = mem_output.trim().parse::<f64>().unwrap_or(0.0);
         let memory_mb = memory_kb / 1024.0;
-        
+
         // Get disk usage
         let disk_cmd = format!(
             "du -sh {:?} | awk '{{print $1}}'",
@@ -118,7 +120,7 @@ impl AgentMonitor {
         );
         let disk_output = self.client.execute_command(&sess, &disk_cmd)?;
         let disk_usage_gb = self.parse_disk_usage(&disk_output);
-        
+
         Ok(ResourceMetrics {
             cpu_percent,
             memory_mb,
@@ -132,21 +134,19 @@ impl AgentMonitor {
             "cd {:?} && if [ -f aurelia.log ]; then tail -n 50 aurelia.log; else echo 'NO_LOG'; fi",
             self.config.remote_deploy_path
         );
-        
+
         let output = self.client.execute_command(&sess, &cmd)?;
-        
+
         if output.contains("NO_LOG") {
             return Ok((false, Vec::new()));
         }
-        
-        let lines: Vec<String> = output.lines()
-            .take(20)
-            .map(|s| s.to_string())
-            .collect();
-        
-        let has_activity = lines.iter()
-            .any(|line| line.contains("[INFO]") || line.contains("[WARN]") || line.contains("[ERROR]"));
-        
+
+        let lines: Vec<String> = output.lines().take(20).map(|s| s.to_string()).collect();
+
+        let has_activity = lines.iter().any(|line| {
+            line.contains("[INFO]") || line.contains("[WARN]") || line.contains("[ERROR]")
+        });
+
         Ok((has_activity, lines))
     }
 
@@ -161,11 +161,11 @@ impl AgentMonitor {
     fn parse_disk_usage(&self, output: &str) -> f64 {
         let size_str = output.trim();
         if size_str.ends_with('K') {
-            size_str[..size_str.len()-1].parse::<f64>().unwrap_or(0.0) / 1024.0 / 1024.0
+            size_str[..size_str.len() - 1].parse::<f64>().unwrap_or(0.0) / 1024.0 / 1024.0
         } else if size_str.ends_with('M') {
-            size_str[..size_str.len()-1].parse::<f64>().unwrap_or(0.0) / 1024.0
+            size_str[..size_str.len() - 1].parse::<f64>().unwrap_or(0.0) / 1024.0
         } else if size_str.ends_with('G') {
-            size_str[..size_str.len()-1].parse::<f64>().unwrap_or(0.0)
+            size_str[..size_str.len() - 1].parse::<f64>().unwrap_or(0.0)
         } else {
             0.0
         }
@@ -174,7 +174,7 @@ impl AgentMonitor {
     pub fn check_autonomous_behavior(&self) -> Result<HashMap<String, bool>> {
         let sess = self.client.connect()?;
         let mut behaviors = HashMap::new();
-        
+
         // Check for strategy decisions
         let cmd = format!(
             "cd {:?} && grep -E 'StrategyDecision|DECISION' aurelia.log | tail -n 10 | wc -l",
@@ -183,7 +183,7 @@ impl AgentMonitor {
         let output = self.client.execute_command(&sess, &cmd)?;
         let decision_count = output.trim().parse::<usize>().unwrap_or(0);
         behaviors.insert("has_decisions".to_string(), decision_count > 0);
-        
+
         // Check for perception events
         let cmd = format!(
             "cd {:?} && grep -E 'MarketData|Perception' aurelia.log | tail -n 10 | wc -l",
@@ -192,7 +192,7 @@ impl AgentMonitor {
         let output = self.client.execute_command(&sess, &cmd)?;
         let perception_count = output.trim().parse::<usize>().unwrap_or(0);
         behaviors.insert("has_perception".to_string(), perception_count > 0);
-        
+
         // Check for reasoning events
         let cmd = format!(
             "cd {:?} && grep -E 'Reasoning|Analysis' aurelia.log | tail -n 10 | wc -l",
@@ -201,7 +201,7 @@ impl AgentMonitor {
         let output = self.client.execute_command(&sess, &cmd)?;
         let reasoning_count = output.trim().parse::<usize>().unwrap_or(0);
         behaviors.insert("has_reasoning".to_string(), reasoning_count > 0);
-        
+
         // Check for self-replication events
         let cmd = format!(
             "cd {:?} && grep -E 'Deploy|Replication' aurelia.log | tail -n 10 | wc -l",
@@ -210,7 +210,7 @@ impl AgentMonitor {
         let output = self.client.execute_command(&sess, &cmd)?;
         let replication_count = output.trim().parse::<usize>().unwrap_or(0);
         behaviors.insert("has_replication".to_string(), replication_count > 0);
-        
+
         Ok(behaviors)
     }
 
@@ -218,15 +218,12 @@ impl AgentMonitor {
         let sess = self.client.connect()?;
         let cmd = format!(
             "cd {:?} && grep -E '{}' aurelia.log | tail -n 20",
-            self.config.remote_deploy_path,
-            event_type
+            self.config.remote_deploy_path, event_type
         );
-        
+
         let output = self.client.execute_command(&sess, &cmd)?;
-        let events: Vec<String> = output.lines()
-            .map(|s| s.to_string())
-            .collect();
-        
+        let events: Vec<String> = output.lines().map(|s| s.to_string()).collect();
+
         Ok(events)
     }
 
@@ -236,7 +233,7 @@ impl AgentMonitor {
             "test -f {:?}/kernel && echo 'EXISTS' || echo 'NOT_FOUND'",
             self.config.remote_deploy_path
         );
-        
+
         let output = self.client.execute_command(&sess, &cmd)?;
         Ok(output.contains("EXISTS"))
     }

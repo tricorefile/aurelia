@@ -3,7 +3,7 @@ use std::fs;
 use std::process::Command;
 use std::time::Duration;
 use tokio::time;
-use tracing::{info, error};
+use tracing::{error, info};
 
 const STRATEGY_ENGINE_SOURCE_PATH: &str = "strategy_engine/src/lib.rs";
 #[cfg(target_os = "linux")]
@@ -62,9 +62,11 @@ impl MetamorphosisEngine {
             .expect("Failed to execute cargo build");
 
         if !output.status.success() {
-            error!("Failed to recompile strategy engine: {}\n{}", 
+            error!(
+                "Failed to recompile strategy engine: {}\n{}",
                 String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr));
+                String::from_utf8_lossy(&output.stderr)
+            );
             // Optional: revert the source code change here
             return;
         }

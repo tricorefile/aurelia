@@ -131,7 +131,7 @@ impl AutonomousDecisionMaker {
 
     pub async fn make_decision(&mut self, context: &DecisionContext) -> Result<Decision> {
         info!("Making autonomous decision based on current context");
-        
+
         // 1. Check for critical failures first
         if let Some(decision) = self.check_failures(context) {
             self.record_decision(decision.clone());
@@ -168,11 +168,11 @@ impl AutonomousDecisionMaker {
         if !context.failed_nodes.is_empty() {
             let failed_node = &context.failed_nodes[0];
             warn!("Detected failed node: {}", failed_node.id);
-            
+
             // Decide recovery action based on failure rate
-            let failure_rate = context.failed_nodes.len() as f64 / 
-                              (context.active_nodes.len() + context.failed_nodes.len()) as f64;
-            
+            let failure_rate = context.failed_nodes.len() as f64
+                / (context.active_nodes.len() + context.failed_nodes.len()) as f64;
+
             let recovery_action = if failure_rate > self.thresholds.failure_tolerance {
                 RecoveryAction::Failover
             } else {
@@ -189,40 +189,47 @@ impl AutonomousDecisionMaker {
 
     fn check_resource_pressure(&self, context: &DecisionContext) -> Option<Decision> {
         let metrics = &context.resource_usage;
-        
-        if metrics.cpu_percent > self.thresholds.max_cpu_before_scaling ||
-           metrics.memory_mb > self.thresholds.max_memory_before_scaling {
-            info!("Resource pressure detected: CPU {}%, Memory {}MB", 
-                  metrics.cpu_percent, metrics.memory_mb);
-            
+
+        if metrics.cpu_percent > self.thresholds.max_cpu_before_scaling
+            || metrics.memory_mb > self.thresholds.max_memory_before_scaling
+        {
+            info!(
+                "Resource pressure detected: CPU {}%, Memory {}MB",
+                metrics.cpu_percent, metrics.memory_mb
+            );
+
             // Calculate scaling factor
             let cpu_pressure = metrics.cpu_percent / self.thresholds.max_cpu_before_scaling;
             let mem_pressure = metrics.memory_mb / self.thresholds.max_memory_before_scaling;
             let scale_factor = f64::max(cpu_pressure, mem_pressure).min(2.0);
-            
+
             return Some(Decision::Scale {
                 factor: scale_factor,
-                reason: format!("High resource usage: CPU {:.1}%, Memory {:.0}MB", 
-                               metrics.cpu_percent, metrics.memory_mb),
+                reason: format!(
+                    "High resource usage: CPU {:.1}%, Memory {:.0}MB",
+                    metrics.cpu_percent, metrics.memory_mb
+                ),
             });
         }
         None
     }
 
     fn check_expansion_opportunity(&self, context: &DecisionContext) -> Option<Decision> {
-        if context.system_health >= self.thresholds.min_health_for_expansion &&
-           context.active_nodes.len() < self.thresholds.max_nodes_allowed {
-            
+        if context.system_health >= self.thresholds.min_health_for_expansion
+            && context.active_nodes.len() < self.thresholds.max_nodes_allowed
+        {
             // Identify potential target servers for expansion
             let target_servers = self.identify_expansion_targets(context);
-            
+
             if !target_servers.is_empty() {
                 info!("Expansion opportunity identified");
                 return Some(Decision::Deploy {
                     target_servers,
                     priority: Priority::Normal,
-                    reason: format!("System health good ({:.1}%), expanding network", 
-                                   context.system_health * 100.0),
+                    reason: format!(
+                        "System health good ({:.1}%), expanding network",
+                        context.system_health * 100.0
+                    ),
                 });
             }
         }
@@ -233,7 +240,7 @@ impl AutonomousDecisionMaker {
         if let Some(market) = &context.market_conditions {
             if market.opportunity_score > 0.7 && market.risk_level < 0.3 {
                 debug!("Favorable market conditions detected");
-                // Market conditions are good but we return None 
+                // Market conditions are good but we return None
                 // as trading decisions are handled by strategy engine
             }
         }
@@ -243,15 +250,12 @@ impl AutonomousDecisionMaker {
     fn identify_expansion_targets(&self, _context: &DecisionContext) -> Vec<String> {
         // In a real implementation, this would analyze network topology,
         // geographic distribution, and available resources
-        vec![
-            "192.168.1.102".to_string(),
-            "192.168.1.103".to_string(),
-        ]
+        vec!["192.168.1.102".to_string(), "192.168.1.103".to_string()]
     }
 
     fn record_decision(&mut self, decision: Decision) {
         self.decision_history.push((Utc::now(), decision));
-        
+
         // Keep only recent history
         if self.decision_history.len() > 1000 {
             self.decision_history.drain(0..100);
@@ -275,10 +279,12 @@ impl AutonomousDecisionMaker {
                 // No adjustment
             }
         }
-        
+
         // Ensure thresholds stay within reasonable bounds
-        self.thresholds.min_health_for_expansion = self.thresholds.min_health_for_expansion.clamp(0.5, 0.95);
-        self.thresholds.max_cpu_before_scaling = self.thresholds.max_cpu_before_scaling.clamp(50.0, 90.0);
+        self.thresholds.min_health_for_expansion =
+            self.thresholds.min_health_for_expansion.clamp(0.5, 0.95);
+        self.thresholds.max_cpu_before_scaling =
+            self.thresholds.max_cpu_before_scaling.clamp(50.0, 90.0);
     }
 
     pub fn get_decision_history(&self) -> &[(DateTime<Utc>, Decision)] {
