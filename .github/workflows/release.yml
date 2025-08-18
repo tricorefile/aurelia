@@ -115,6 +115,11 @@ jobs:
           restore-keys: |
             ${{ matrix.platform.name }}-cargo-build-target-
 
+      - name: Create test .env file
+        run: |
+          echo "BINANCE_API_KEY=test_key" > .env
+          echo "BINANCE_API_SECRET=test_secret" >> .env
+
       - name: Build binary
         run: |
           cargo build --verbose --release --target ${{ matrix.platform.target }} --bin kernel

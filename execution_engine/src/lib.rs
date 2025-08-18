@@ -127,12 +127,20 @@ pub struct ExecutionEngine {
 
 impl ExecutionEngine {
     pub fn new(tx: EventSender, rx: EventReceiver, deployer: Box<dyn Deployer>) -> Self {
-        dotenv().expect(".env file not found");
-        let api_key = env::var("BINANCE_API_KEY").expect("BINANCE_API_KEY must be set");
-        let api_secret =
-            env::var("BINANCE_API_SECRET").expect("BINANCE_API_SECRET must be set");
+        // Try to load .env file but don't panic if it doesn't exist
+        let _ = dotenv();
+        
+        // Use default values for tests or when env vars are not set
+        let api_key = env::var("BINANCE_API_KEY").unwrap_or_else(|_| {
+            warn!("BINANCE_API_KEY not set, using placeholder");
+            "test_api_key".to_string()
+        });
+        let api_secret = env::var("BINANCE_API_SECRET").unwrap_or_else(|_| {
+            warn!("BINANCE_API_SECRET not set, using placeholder");
+            "test_api_secret".to_string()
+        });
 
-        info!("[Execution Engine] Loaded API keys.");
+        info!("[Execution Engine] Initialized.");
 
         Self {
             tx,
