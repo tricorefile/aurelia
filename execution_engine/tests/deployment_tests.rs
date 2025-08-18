@@ -1,6 +1,6 @@
 use common::{AppEvent, DeploymentInfo};
 use execution_engine::{ExecutionEngine, Deployer};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use tokio::sync::broadcast;
 
@@ -29,7 +29,6 @@ fn test_deployment_event_is_handled() {
         remote_user: "test".to_string(),
         private_key_path: "/tmp/test_key".to_string(),
         remote_path: "/tmp/aurelia".to_string(),
-        local_exe_path: "./kernel".to_string(),
     };
 
     // We need to run the engine in a separate thread because it runs an infinite loop.

@@ -2,6 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthMethod {
+    Key,
+    Password,
+    KeyWithPassphrase,
+}
+
+impl Default for AuthMethod {
+    fn default() -> Self {
+        AuthMethod::Key
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestConfig {
     pub test_environments: Vec<ServerConfig>,
     pub test_settings: TestSettings,
@@ -14,9 +28,50 @@ pub struct ServerConfig {
     pub ip: String,
     pub port: u16,
     pub user: String,
-    pub ssh_key_path: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssh_key_path: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub auth_method: AuthMethod,
     pub remote_deploy_path: PathBuf,
     pub role: ServerRole,
+}
+
+impl ServerConfig {
+    /// 创建使用密钥认证的配置(兼容旧代码)
+    pub fn with_key(name: String, ip: String, port: u16, user: String, 
+                    ssh_key_path: PathBuf, remote_deploy_path: PathBuf, 
+                    role: ServerRole) -> Self {
+        Self {
+            name,
+            ip,
+            port,
+            user,
+            ssh_key_path: Some(ssh_key_path),
+            password: None,
+            auth_method: AuthMethod::Key,
+            remote_deploy_path,
+            role,
+        }
+    }
+    
+    /// 创建使用密码认证的配置
+    pub fn with_password(name: String, ip: String, port: u16, user: String,
+                        password: String, remote_deploy_path: PathBuf,
+                        role: ServerRole) -> Self {
+        Self {
+            name,
+            ip,
+            port,
+            user,
+            ssh_key_path: None,
+            password: Some(password),
+            auth_method: AuthMethod::Password,
+            remote_deploy_path,
+            role,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +114,9 @@ impl Default for TestConfig {
                     ip: "192.168.1.100".to_string(),
                     port: 22,
                     user: "ubuntu".to_string(),
-                    ssh_key_path: PathBuf::from("~/.ssh/id_rsa"),
+                    ssh_key_path: Some(PathBuf::from("~/.ssh/id_rsa")),
+                    password: None,
+                    auth_method: AuthMethod::Key,
                     remote_deploy_path: PathBuf::from("/home/ubuntu/aurelia_agent"),
                     role: ServerRole::Primary,
                 },
@@ -68,7 +125,9 @@ impl Default for TestConfig {
                     ip: "192.168.1.101".to_string(),
                     port: 22,
                     user: "ubuntu".to_string(),
-                    ssh_key_path: PathBuf::from("~/.ssh/id_rsa"),
+                    ssh_key_path: Some(PathBuf::from("~/.ssh/id_rsa")),
+                    password: None,
+                    auth_method: AuthMethod::Key,
                     remote_deploy_path: PathBuf::from("/home/ubuntu/aurelia_agent"),
                     role: ServerRole::Replica,
                 },

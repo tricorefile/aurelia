@@ -1,11 +1,11 @@
-use crate::config::ServerConfig;
+use crate::config::{ServerConfig, AuthMethod};
 use anyhow::{Context, Result};
 use ssh2::Session;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 pub struct DeploymentClient {
     config: ServerConfig,
@@ -24,21 +24,66 @@ impl DeploymentClient {
         
         let mut sess = Session::new().context("Failed to create SSH session")?;
         sess.set_tcp_stream(tcp);
-        sess.handshake().context("SSH handshake failed")?;
         
-        let key_path = self.expand_tilde(&self.config.ssh_key_path);
-        sess.userauth_pubkey_file(
-            &self.config.user,
-            None,
-            Path::new(&key_path),
-            None,
-        ).context("SSH authentication failed")?;
+        // 执行SSH握手，添加更详细的错误信息
+        if let Err(e) = sess.handshake() {
+            error!("SSH handshake failed for {}:{} - Error: {:?}", self.config.ip, self.config.port, e);
+            return Err(anyhow::anyhow!("SSH handshake failed: {}", e));
+        }
+        
+        // 根据认证方式选择不同的认证方法
+        match &self.config.auth_method {
+            AuthMethod::Key => {
+                // 使用SSH密钥认证
+                let key_path = self.config.ssh_key_path.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("SSH key path not provided for key authentication"))?;
+                let expanded_path = self.expand_tilde(key_path);
+                
+                info!("Authenticating with SSH key: {}", expanded_path.display());
+                sess.userauth_pubkey_file(
+                    &self.config.user,
+                    None,
+                    Path::new(&expanded_path),
+                    None,
+                ).context("SSH key authentication failed")?;
+            },
+            AuthMethod::Password => {
+                // 使用密码认证
+                let password = self.config.password.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Password not provided for password authentication"))?;
+                
+                info!("Authenticating with password for user: {} on {}:{}", 
+                      self.config.user, self.config.ip, self.config.port);
+                
+                if let Err(e) = sess.userauth_password(&self.config.user, password) {
+                    error!("Password authentication failed for user {} - Error: {:?}", self.config.user, e);
+                    return Err(anyhow::anyhow!("Password authentication failed: {}", e));
+                }
+            },
+            AuthMethod::KeyWithPassphrase => {
+                // 使用带密码短语的密钥认证
+                let key_path = self.config.ssh_key_path.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("SSH key path not provided"))?;
+                let expanded_path = self.expand_tilde(key_path);
+                let passphrase = self.config.password.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Passphrase not provided for encrypted key"))?;
+                
+                info!("Authenticating with encrypted SSH key: {}", expanded_path.display());
+                sess.userauth_pubkey_file(
+                    &self.config.user,
+                    None,
+                    Path::new(&expanded_path),
+                    Some(passphrase),
+                ).context("SSH key with passphrase authentication failed")?;
+            }
+        }
         
         if !sess.authenticated() {
             return Err(anyhow::anyhow!("SSH authentication failed"));
         }
         
-        info!("Successfully connected to {}", self.config.ip);
+        info!("Successfully connected to {} using {:?} authentication", 
+              self.config.ip, self.config.auth_method);
         Ok(sess)
     }
 

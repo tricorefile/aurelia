@@ -1,0 +1,42 @@
+# Multi-stage build for Linux binary
+FROM rust:1.75 as builder
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /build
+
+# Copy cargo files first for better caching
+COPY Cargo.toml Cargo.lock ./
+COPY autonomy_core/Cargo.toml autonomy_core/
+COPY common/Cargo.toml common/
+COPY core/Cargo.toml core/
+COPY database/Cargo.toml database/
+COPY execution_engine/Cargo.toml execution_engine/
+COPY kernel/Cargo.toml kernel/
+COPY network/Cargo.toml network/
+COPY deployment_tester/Cargo.toml deployment_tester/
+
+# Create dummy source files to build dependencies
+RUN mkdir -p autonomy_core/src common/src core/src database/src execution_engine/src kernel/src network/src deployment_tester/src
+RUN echo "fn main() {}" > kernel/src/main.rs
+RUN touch autonomy_core/src/lib.rs common/src/lib.rs core/src/lib.rs database/src/lib.rs execution_engine/src/lib.rs network/src/lib.rs deployment_tester/src/lib.rs
+
+# Build dependencies
+RUN cargo build --release --bin kernel
+
+# Now copy the actual source code
+COPY . .
+
+# Force rebuild of our code
+RUN touch kernel/src/main.rs
+RUN cargo build --release --bin kernel
+
+# Final stage - extract the binary
+FROM scratch AS export
+COPY --from=builder /build/target/release/kernel /kernel

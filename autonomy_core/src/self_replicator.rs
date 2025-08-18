@@ -1,12 +1,13 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use deployment_tester::{DeploymentClient, ServerConfig, TestConfig};
+use deployment_tester::{DeploymentClient, ServerConfig as TestServerConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
+use crate::server_config::{ServerConfig, TargetServer};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicationTarget {
@@ -58,16 +59,55 @@ pub struct SelfReplicator {
     active_replicas: Arc<RwLock<HashMap<String, DateTime<Utc>>>>,
     replication_history: Arc<RwLock<Vec<ReplicationResult>>>,
     binary_path: PathBuf,
+    server_config: Option<ServerConfig>,
 }
 
 impl SelfReplicator {
     pub fn new(binary_path: PathBuf) -> Self {
+        // 尝试加载配置文件
+        let server_config = Self::load_server_config();
+        
+        // 如果有配置文件，从中初始化目标服务器
+        let targets = if let Some(ref config) = server_config {
+            config.get_servers_by_priority()
+                .into_iter()
+                .map(|server| ReplicationTarget {
+                    ip: server.ip.clone(),
+                    user: server.username.clone(),
+                    ssh_key_path: server.get_expanded_ssh_key_path(),
+                    remote_path: PathBuf::from(&server.remote_path),
+                    priority: server.priority as u8,
+                    last_attempt: None,
+                    success_count: 0,
+                    failure_count: 0,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        
         Self {
             strategy: ReplicationStrategy::default(),
-            targets: Arc::new(RwLock::new(Vec::new())),
+            targets: Arc::new(RwLock::new(targets)),
             active_replicas: Arc::new(RwLock::new(HashMap::new())),
             replication_history: Arc::new(RwLock::new(Vec::new())),
             binary_path,
+            server_config,
+        }
+    }
+    
+    fn load_server_config() -> Option<ServerConfig> {
+        let config_path = PathBuf::from("config/target_servers.json");
+        
+        match ServerConfig::from_file(&config_path) {
+            Ok(config) => {
+                info!("Loaded server configuration from {:?}", config_path);
+                Some(config)
+            }
+            Err(e) => {
+                warn!("Failed to load server configuration: {}. Using fallback targets.", e);
+                None
+            }
         }
     }
 
@@ -80,6 +120,68 @@ impl SelfReplicator {
         let mut targets = self.targets.write().await;
         targets.push(target);
         targets.sort_by_key(|t| t.priority);
+    }
+    
+    /// 从配置文件重新加载目标服务器
+    pub async fn reload_targets_from_config(&mut self) -> Result<usize> {
+        let config = Self::load_server_config()
+            .ok_or_else(|| anyhow::anyhow!("Failed to load server configuration"))?;
+        
+        let new_targets: Vec<ReplicationTarget> = config.get_servers_by_priority()
+            .into_iter()
+            .map(|server| ReplicationTarget {
+                ip: server.ip.clone(),
+                user: server.username.clone(),
+                ssh_key_path: server.get_expanded_ssh_key_path(),
+                remote_path: PathBuf::from(&server.remote_path),
+                priority: server.priority as u8,
+                last_attempt: None,
+                success_count: 0,
+                failure_count: 0,
+            })
+            .collect();
+        
+        let count = new_targets.len();
+        *self.targets.write().await = new_targets;
+        self.server_config = Some(config);
+        
+        info!("Reloaded {} target servers from configuration", count);
+        Ok(count)
+    }
+    
+    /// 添加新服务器到配置并保存
+    pub async fn add_server_to_config(&mut self, server: TargetServer) -> Result<()> {
+        if let Some(ref mut config) = self.server_config {
+            config.add_server(server.clone())?;
+            config.save_to_file("config/target_servers.json")?;
+            
+            // 添加到运行时目标列表
+            let target = ReplicationTarget {
+                ip: server.ip.clone(),
+                user: server.username.clone(),
+                ssh_key_path: server.get_expanded_ssh_key_path(),
+                remote_path: PathBuf::from(&server.remote_path),
+                priority: server.priority as u8,
+                last_attempt: None,
+                success_count: 0,
+                failure_count: 0,
+            };
+            self.targets.write().await.push(target);
+            
+            info!("Added server {} to configuration", server.id);
+        } else {
+            return Err(anyhow::anyhow!("No server configuration loaded"));
+        }
+        Ok(())
+    }
+    
+    /// 获取当前配置的服务器列表
+    pub fn get_configured_servers(&self) -> Vec<TargetServer> {
+        if let Some(ref config) = self.server_config {
+            config.target_servers.clone()
+        } else {
+            Vec::new()
+        }
     }
 
     pub async fn should_replicate(&self) -> bool {
@@ -162,14 +264,76 @@ impl SelfReplicator {
         let start_time = Utc::now();
         info!("Attempting replication to {}", target.ip);
 
-        let server_config = ServerConfig {
-            name: format!("replica-{}", target.ip),
-            ip: target.ip.clone(),
-            port: 22,
-            user: target.user.clone(),
-            ssh_key_path: target.ssh_key_path.clone(),
-            remote_deploy_path: target.remote_path.clone(),
-            role: deployment_tester::config::ServerRole::Replica,
+        // 从原始配置中获取完整的服务器信息（包括认证方式和密码）
+        let full_server_info = if let Some(ref config) = self.server_config {
+            config.target_servers.iter()
+                .find(|s| s.ip == target.ip && s.enabled)
+                .cloned()
+        } else {
+            None
+        };
+
+        // 构建deployment_tester的ServerConfig
+        let server_config = if let Some(server_info) = full_server_info {
+            // 根据认证方式构建配置
+            match server_info.auth_method {
+                crate::server_config::AuthMethod::Password => {
+                    // 解码密码
+                    let password = server_info.get_password().unwrap_or_default();
+                    TestServerConfig {
+                        name: format!("replica-{}", target.ip),
+                        ip: target.ip.clone(),
+                        port: server_info.port,
+                        user: target.user.clone(),
+                        ssh_key_path: None,
+                        password: Some(password),
+                        auth_method: deployment_tester::config::AuthMethod::Password,
+                        remote_deploy_path: target.remote_path.clone(),
+                        role: deployment_tester::config::ServerRole::Replica,
+                    }
+                },
+                crate::server_config::AuthMethod::KeyWithPassphrase => {
+                    let passphrase = server_info.get_password();
+                    TestServerConfig {
+                        name: format!("replica-{}", target.ip),
+                        ip: target.ip.clone(),
+                        port: server_info.port,
+                        user: target.user.clone(),
+                        ssh_key_path: Some(target.ssh_key_path.clone()),
+                        password: passphrase,
+                        auth_method: deployment_tester::config::AuthMethod::KeyWithPassphrase,
+                        remote_deploy_path: target.remote_path.clone(),
+                        role: deployment_tester::config::ServerRole::Replica,
+                    }
+                },
+                _ => {
+                    // 默认使用密钥认证
+                    TestServerConfig {
+                        name: format!("replica-{}", target.ip),
+                        ip: target.ip.clone(),
+                        port: server_info.port,
+                        user: target.user.clone(),
+                        ssh_key_path: Some(target.ssh_key_path.clone()),
+                        password: None,
+                        auth_method: deployment_tester::config::AuthMethod::Key,
+                        remote_deploy_path: target.remote_path.clone(),
+                        role: deployment_tester::config::ServerRole::Replica,
+                    }
+                }
+            }
+        } else {
+            // 如果找不到配置，使用默认的密钥认证
+            TestServerConfig {
+                name: format!("replica-{}", target.ip),
+                ip: target.ip.clone(),
+                port: 22,
+                user: target.user.clone(),
+                ssh_key_path: Some(target.ssh_key_path.clone()),
+                password: None,
+                auth_method: deployment_tester::config::AuthMethod::Key,
+                remote_deploy_path: target.remote_path.clone(),
+                role: deployment_tester::config::ServerRole::Replica,
+            }
         };
 
         let client = DeploymentClient::new(server_config);
@@ -221,14 +385,71 @@ impl SelfReplicator {
         let active_replicas = self.active_replicas.read().await.clone();
 
         for (ip, _) in active_replicas.iter() {
-            let server_config = ServerConfig {
-                name: format!("replica-{}", ip),
-                ip: ip.clone(),
-                port: 22,
-                user: "ubuntu".to_string(), // This should come from configuration
-                ssh_key_path: PathBuf::from("~/.ssh/id_rsa"),
-                remote_deploy_path: PathBuf::from("/home/ubuntu/aurelia_agent"),
-                role: deployment_tester::config::ServerRole::Replica,
+            // 从配置中获取服务器信息
+            let server_info = if let Some(ref config) = self.server_config {
+                config.target_servers.iter()
+                    .find(|s| &s.ip == ip)
+                    .cloned()
+            } else {
+                None
+            };
+
+            let server_config = if let Some(info) = server_info {
+                // 使用实际的服务器配置
+                match info.auth_method {
+                    crate::server_config::AuthMethod::Password => {
+                        TestServerConfig {
+                            name: format!("replica-{}", ip),
+                            ip: ip.clone(),
+                            port: info.port,
+                            user: info.username.clone(),
+                            ssh_key_path: None,
+                            password: info.get_password(),
+                            auth_method: deployment_tester::config::AuthMethod::Password,
+                            remote_deploy_path: PathBuf::from(&info.remote_path),
+                            role: deployment_tester::config::ServerRole::Replica,
+                        }
+                    },
+                    crate::server_config::AuthMethod::KeyWithPassphrase => {
+                        TestServerConfig {
+                            name: format!("replica-{}", ip),
+                            ip: ip.clone(),
+                            port: info.port,
+                            user: info.username.clone(),
+                            ssh_key_path: Some(info.get_expanded_ssh_key_path()),
+                            password: info.get_password(),
+                            auth_method: deployment_tester::config::AuthMethod::KeyWithPassphrase,
+                            remote_deploy_path: PathBuf::from(&info.remote_path),
+                            role: deployment_tester::config::ServerRole::Replica,
+                        }
+                    },
+                    _ => {
+                        TestServerConfig {
+                            name: format!("replica-{}", ip),
+                            ip: ip.clone(),
+                            port: info.port,
+                            user: info.username.clone(),
+                            ssh_key_path: Some(info.get_expanded_ssh_key_path()),
+                            password: None,
+                            auth_method: deployment_tester::config::AuthMethod::Key,
+                            remote_deploy_path: PathBuf::from(&info.remote_path),
+                            role: deployment_tester::config::ServerRole::Replica,
+                        }
+                    }
+                }
+            } else {
+                // 使用默认配置
+                TestServerConfig {
+                    name: format!("replica-{}", ip),
+                    ip: ip.clone(),
+                    port: 22,
+                    user: "ubuntu".to_string(),
+                    ssh_key_path: Some(PathBuf::from("~/.ssh/id_rsa")),
+                    password: None,
+                    auth_method: deployment_tester::config::AuthMethod::Key,
+                    remote_deploy_path: PathBuf::from("/home/ubuntu/aurelia_agent"),
+                    role: deployment_tester::config::ServerRole::Replica,
+                }
             };
 
             let monitor = deployment_tester::AgentMonitor::new(server_config);

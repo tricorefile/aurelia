@@ -1,4 +1,4 @@
-use deployment_tester::{TestConfig, TestRunner, DeploymentClient, AgentMonitor, ValidationSuite};
+use deployment_tester::{TestConfig, DeploymentClient, AgentMonitor};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -26,7 +26,7 @@ async fn test_config_serialization() {
 #[cfg(test)]
 mod mock_tests {
     use super::*;
-    use deployment_tester::config::{ServerConfig, ServerRole};
+    use deployment_tester::config::{ServerConfig, ServerRole, AuthMethod};
     
     fn create_mock_server_config() -> ServerConfig {
         ServerConfig {
@@ -34,7 +34,9 @@ mod mock_tests {
             ip: "127.0.0.1".to_string(),
             port: 22,
             user: "testuser".to_string(),
-            ssh_key_path: PathBuf::from("~/.ssh/id_rsa"),
+            ssh_key_path: Some(PathBuf::from("~/.ssh/id_rsa")),
+            password: None,
+            auth_method: AuthMethod::Key,
             remote_deploy_path: PathBuf::from("/tmp/aurelia_test"),
             role: ServerRole::Primary,
         }

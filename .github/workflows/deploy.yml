@@ -1,0 +1,105 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      server_ip:
+        description: 'Target server IP (leave empty to use default)'
+        required: false
+        default: ''
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-deploy-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-deploy-
+
+      - name: Build release binary
+        run: |
+          cargo build --release --target x86_64-unknown-linux-gnu --bin kernel
+          ls -la target/x86_64-unknown-linux-gnu/release/
+
+      - name: Prepare deployment package
+        run: |
+          mkdir -p deploy_package
+          cp target/x86_64-unknown-linux-gnu/release/kernel deploy_package/
+          cp -r config deploy_package/ || echo "No config directory"
+          tar czf aurelia-deploy.tar.gz deploy_package/
+          echo "Deployment package created"
+          ls -la aurelia-deploy.tar.gz
+
+      # 如果你有服务器的SSH密钥，可以取消下面的注释并配置
+      # - name: Deploy to server
+      #   env:
+      #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     SERVER_IP: ${{ github.event.inputs.server_ip || secrets.DEFAULT_SERVER_IP }}
+      #     SERVER_USER: ${{ secrets.SERVER_USER }}
+      #   run: |
+      #     # Setup SSH
+      #     mkdir -p ~/.ssh
+      #     echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+      #     chmod 600 ~/.ssh/deploy_key
+      #     
+      #     # Copy files to server
+      #     scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+      #       aurelia-deploy.tar.gz $SERVER_USER@$SERVER_IP:/tmp/
+      #     
+      #     # Deploy on server
+      #     ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << 'ENDSSH'
+      #       cd /opt/aurelia || mkdir -p /opt/aurelia && cd /opt/aurelia
+      #       tar xzf /tmp/aurelia-deploy.tar.gz
+      #       cd deploy_package
+      #       
+      #       # Stop old service
+      #       sudo systemctl stop aurelia || true
+      #       
+      #       # Install new binary
+      #       sudo cp kernel /usr/local/bin/aurelia-kernel
+      #       sudo chmod +x /usr/local/bin/aurelia-kernel
+      #       
+      #       # Copy config
+      #       sudo cp -r config /etc/aurelia/ || true
+      #       
+      #       # Start service
+      #       sudo systemctl start aurelia
+      #       sudo systemctl status aurelia
+      #     ENDSSH
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v3
+        with:
+          name: aurelia-deploy-${{ github.event.inputs.environment }}
+          path: aurelia-deploy.tar.gz
+          retention-days: 7

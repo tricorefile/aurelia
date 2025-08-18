@@ -1,0 +1,108 @@
+{
+  "target_servers": [
+    {
+      "id": "server-1",
+      "name": "Production Server 1",
+      "ip": "192.168.1.101",
+      "port": 22,
+      "username": "ubuntu",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_path": "/home/ubuntu/aurelia",
+      "enabled": false,
+      "priority": 1,
+      "tags": [
+        "production",
+        "primary"
+      ],
+      "max_retries": 3,
+      "retry_delay_seconds": 60
+    },
+    {
+      "id": "server-2",
+      "name": "Production Server 2",
+      "ip": "192.168.1.102",
+      "port": 22,
+      "username": "ubuntu",
+      "ssh_key_path": "~/.ssh/id_rsa",
+      "remote_path": "/home/ubuntu/aurelia",
+      "enabled": false,
+      "priority": 2,
+      "tags": [
+        "production",
+        "secondary"
+      ],
+      "max_retries": 3,
+      "retry_delay_seconds": 60
+    },
+    {
+      "id": "server-3",
+      "name": "Backup Server",
+      "ip": "192.168.1.103",
+      "port": 22,
+      "username": "admin",
+      "ssh_key_path": "~/.ssh/backup_key",
+      "remote_path": "/opt/aurelia",
+      "enabled": false,
+      "priority": 3,
+      "tags": [
+        "backup"
+      ],
+      "max_retries": 2,
+      "retry_delay_seconds": 120
+    },
+    {
+      "id": "dev-server",
+      "name": "Development Server",
+      "ip": "10.0.0.50",
+      "port": 2222,
+      "username": "developer",
+      "ssh_key_path": "~/.ssh/dev_key",
+      "remote_path": "/home/developer/aurelia",
+      "enabled": false,
+      "priority": 99,
+      "tags": [
+        "development",
+        "test"
+      ],
+      "max_retries": 1,
+      "retry_delay_seconds": 30
+    },
+    {
+      "id": "server-pwd",
+      "name": "密码服务器",
+      "ip": "194.146.13.14",
+      "port": 22,
+      "username": "admin",
+      "remote_path": "/home/ubuntu/aurelia",
+      "enabled": true,
+      "priority": 1,
+      "tags": [],
+      "max_retries": 3,
+      "retry_delay_seconds": 60,
+      "auth_method": "password",
+      "password_base64": "QTh2ZDBWSERHbHBRWTNWdTM3ZUN6NDAwZkNDMWI="
+    }
+  ],
+  "default_settings": {
+    "port": 22,
+    "username": "ubuntu",
+    "ssh_key_path": "~/.ssh/id_rsa",
+    "remote_path": "/home/ubuntu/aurelia",
+    "max_retries": 3,
+    "retry_delay_seconds": 60,
+    "connection_timeout_seconds": 30,
+    "deployment_timeout_seconds": 300
+  },
+  "deployment_strategy": {
+    "type": "progressive",
+    "parallel_deployments": 2,
+    "delay_between_deployments_seconds": 30,
+    "health_check_after_deployment": true,
+    "rollback_on_failure": true
+  },
+  "ssh_config": {
+    "strict_host_key_checking": false,
+    "compression": true,
+    "keepalive_interval_seconds": 60
+  }
+}
