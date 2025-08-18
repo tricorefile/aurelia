@@ -36,7 +36,7 @@ jobs:
           sudo apt-get install -y pkg-config libssl-dev
 
       - name: Cache cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -98,7 +98,7 @@ jobs:
       #     ENDSSH
 
       - name: Upload deployment package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aurelia-deploy-${{ github.event.inputs.environment }}
           path: aurelia-deploy.tar.gz
