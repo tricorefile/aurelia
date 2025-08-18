@@ -64,6 +64,15 @@ impl StrategyEngine {
     }
 }
 
+/// Process event from kernel
+/// 
+/// # Safety
+/// 
+/// This function is unsafe because it dereferences a raw pointer.
+/// The caller must ensure that:
+/// - `event_json` is a valid pointer to a null-terminated C string
+/// - The pointer remains valid for the duration of this function call
+/// - The string is valid UTF-8
 #[no_mangle]
 pub unsafe extern "C" fn process_event_from_kernel(event_json: *const std::os::raw::c_char) {
     let c_str = std::ffi::CStr::from_ptr(event_json);
