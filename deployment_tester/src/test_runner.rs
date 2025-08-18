@@ -1,9 +1,9 @@
-use crate::config::{ServerRole, TestConfig};
+use crate::config::TestConfig;
 use crate::deployer::DeploymentClient;
 use crate::monitor::AgentMonitor;
 use crate::validator::ValidationSuite;
 use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time;
 use tracing::{error, info, warn};

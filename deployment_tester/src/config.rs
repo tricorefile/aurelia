@@ -1,18 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthMethod {
+    #[default]
     Key,
     Password,
     KeyWithPassphrase,
-}
-
-impl Default for AuthMethod {
-    fn default() -> Self {
-        AuthMethod::Key
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

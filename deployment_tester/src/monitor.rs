@@ -4,7 +4,6 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonitoringResult {
@@ -160,12 +159,12 @@ impl AgentMonitor {
 
     fn parse_disk_usage(&self, output: &str) -> f64 {
         let size_str = output.trim();
-        if size_str.ends_with('K') {
-            size_str[..size_str.len() - 1].parse::<f64>().unwrap_or(0.0) / 1024.0 / 1024.0
-        } else if size_str.ends_with('M') {
-            size_str[..size_str.len() - 1].parse::<f64>().unwrap_or(0.0) / 1024.0
-        } else if size_str.ends_with('G') {
-            size_str[..size_str.len() - 1].parse::<f64>().unwrap_or(0.0)
+        if let Some(stripped) = size_str.strip_suffix('K') {
+            stripped.parse::<f64>().unwrap_or(0.0) / 1024.0 / 1024.0
+        } else if let Some(stripped) = size_str.strip_suffix('M') {
+            stripped.parse::<f64>().unwrap_or(0.0) / 1024.0
+        } else if let Some(stripped) = size_str.strip_suffix('G') {
+            stripped.parse::<f64>().unwrap_or(0.0)
         } else {
             0.0
         }
