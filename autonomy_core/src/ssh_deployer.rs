@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// Pure Rust SSH deployment capability
 /// Allows the kernel to deploy itself to remote servers without external scripts
@@ -12,6 +12,12 @@ pub struct SshDeployer {
     session: Session,
     sftp: Option<Sftp>,
     connected: bool,
+}
+
+impl Default for SshDeployer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SshDeployer {
@@ -305,6 +311,7 @@ WantedBy=multi-user.target
     }
 
     /// Perform a complete deployment with all steps
+    #[allow(clippy::too_many_arguments)]
     pub fn full_deploy(
         &mut self,
         host: &str,

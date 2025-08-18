@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -63,8 +63,16 @@ pub struct RecoveryManager {
     failure_history: Arc<RwLock<Vec<FailureEvent>>>,
     recovery_history: Arc<RwLock<Vec<RecoveryResult>>>,
     recovery_strategies: Arc<RwLock<HashMap<FailureType, Vec<RecoveryAction>>>>,
+    #[allow(dead_code)]
     max_recovery_attempts: u32,
+    #[allow(dead_code)]
     recovery_timeout_seconds: u64,
+}
+
+impl Default for RecoveryManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RecoveryManager {
@@ -394,7 +402,7 @@ impl RecoveryManager {
             .await
             .retain(|f| f.timestamp > cutoff);
 
-        self.recovery_history.write().await.retain(|r| {
+        self.recovery_history.write().await.retain(|_r| {
             // Keep recovery history based on failure timestamps
             true
         });

@@ -192,11 +192,10 @@ impl DeploymentClient {
 
     fn upload_config_files(&self, sess: &Session) -> Result<()> {
         // Create .env file
-        let env_content = format!(
-            "BINANCE_API_KEY=test_api_key\n\
+        let env_content = "BINANCE_API_KEY=test_api_key\n\
              BINANCE_API_SECRET=test_api_secret\n\
              DEPLOYMENT_MODE=test\n"
-        );
+            .to_string();
 
         let remote_env_path = self.config.remote_deploy_path.join(".env");
         let mut remote_file =

@@ -152,7 +152,7 @@ impl AgentMonitor {
     pub fn check_network_connections(&self) -> Result<usize> {
         let sess = self.client.connect()?;
         let cmd = "netstat -an | grep ':8080' | grep ESTABLISHED | wc -l";
-        let output = self.client.execute_command(&sess, &cmd)?;
+        let output = self.client.execute_command(&sess, cmd)?;
         let count = output.trim().parse::<usize>().unwrap_or(0);
         Ok(count)
     }

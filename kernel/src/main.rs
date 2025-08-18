@@ -98,7 +98,7 @@ async fn main() {
     }
 
     // Start autonomous operations
-    let agent_handle = {
+    let _agent_handle = {
         let agent = autonomous_agent.clone();
         task::spawn(async move {
             if let Err(e) = agent.run().await {
@@ -115,7 +115,7 @@ async fn main() {
     let monitoring_service = Arc::new(MonitoringService::new(monitoring_config));
 
     // 启动监控服务
-    let monitoring_handle = {
+    let _monitoring_handle = {
         let service = monitoring_service.clone();
         task::spawn(async move {
             tracing::info!("Starting Rust monitoring HTTP API on port 8080");
@@ -126,7 +126,7 @@ async fn main() {
     };
 
     // 订阅事件并更新监控数据
-    let monitoring_tx = tx.clone();
+    let _monitoring_tx = tx.clone();
     let mut monitoring_rx = tx.subscribe();
     let monitoring_service_clone = monitoring_service.clone();
     task::spawn(async move {
@@ -142,13 +142,13 @@ async fn main() {
                             )
                             .await;
                     }
-                    AppEvent::StrategyDecision(decision) => match decision {
-                        common::StrategyDecision::Buy(symbol, price)
-                        | common::StrategyDecision::Sell(symbol, price) => {
-                            http_service.record_trade(true).await;
-                        }
-                        _ => {}
-                    },
+                    AppEvent::StrategyDecision(
+                        common::StrategyDecision::Buy(_, _)
+                        | common::StrategyDecision::Sell(_, _),
+                    ) => {
+                        http_service.record_trade(true).await;
+                    }
+                    AppEvent::StrategyDecision(_) => {},
                     AppEvent::FinancialUpdate(pnl) => {
                         http_service.update_pnl(*pnl).await;
                     }
@@ -198,7 +198,7 @@ async fn main() {
             _ = file_reader_interval.tick() => {
                 if let Ok(file) = File::open("strategy_output.log") {
                     let reader = BufReader::new(file);
-                    for line in reader.lines().flatten() {
+                    for line in reader.lines().map_while(Result::ok) {
                         if let Ok(event) = serde_json::from_str::<AppEvent>(&line) {
                             tracing::info!(?event, "Kernel received event from dynamic module.");
                             if tx.send(event).is_err() {

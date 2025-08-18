@@ -18,7 +18,7 @@ impl Deployer for MockDeployer {
 
 #[test]
 fn test_deployment_event_is_handled() {
-    let (tx, mut rx) = broadcast::channel(16);
+    let (tx, rx) = broadcast::channel(16);
     let was_called = Arc::new(Mutex::new(false));
     let mock_deployer = MockDeployer {
         was_called: was_called.clone(),

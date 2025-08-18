@@ -70,6 +70,7 @@ pub struct HealthMonitor {
     current_metrics: Arc<RwLock<HealthMetrics>>,
     health_checks: Arc<RwLock<HashMap<String, HealthCheck>>>,
     metrics_history: Arc<RwLock<Vec<HealthMetrics>>>,
+    #[allow(clippy::type_complexity)]
     alert_callbacks: Arc<RwLock<Vec<Box<dyn Fn(HealthAlert) + Send + Sync>>>>,
     monitoring_interval: Duration,
 }
@@ -89,6 +90,12 @@ pub enum AlertSeverity {
     Warning,
     Critical,
     Fatal,
+}
+
+impl Default for HealthMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HealthMonitor {
@@ -416,7 +423,7 @@ impl HealthMonitor {
         HealthSummary {
             status: overall_status,
             metrics,
-            checks: checks.into_iter().map(|(_, v)| v).collect(),
+            checks: checks.into_values().collect(),
             timestamp: Utc::now(),
         }
     }

@@ -89,6 +89,12 @@ pub trait TaskExecutor: Send + Sync {
     async fn execute(&self, task: &Task) -> Result<TaskResult>;
 }
 
+impl Default for TaskScheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskScheduler {
     pub fn new() -> Self {
         Self {
@@ -136,7 +142,7 @@ impl TaskScheduler {
             task.scheduled_time = scheduled_time;
 
             self.schedule_task(task).await?;
-            scheduled_time = scheduled_time + interval;
+            scheduled_time += interval;
         }
 
         Ok(())

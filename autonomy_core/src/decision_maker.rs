@@ -102,6 +102,7 @@ struct DecisionThresholds {
     min_health_for_expansion: f64,
     max_cpu_before_scaling: f64,
     max_memory_before_scaling: f64,
+    #[allow(dead_code)]
     min_nodes_required: usize,
     max_nodes_allowed: usize,
     failure_tolerance: f64,
@@ -117,6 +118,12 @@ impl Default for DecisionThresholds {
             max_nodes_allowed: 10,
             failure_tolerance: 0.3,
         }
+    }
+}
+
+impl Default for AutonomousDecisionMaker {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -267,13 +274,13 @@ impl AutonomousDecisionMaker {
         match feedback.outcome {
             Outcome::Success => {
                 // Slightly relax thresholds on success
-                self.thresholds.min_health_for_expansion *= (1.0 - self.learning_rate * 0.1);
-                self.thresholds.max_cpu_before_scaling *= (1.0 + self.learning_rate * 0.05);
+                self.thresholds.min_health_for_expansion *= 1.0 - self.learning_rate * 0.1;
+                self.thresholds.max_cpu_before_scaling *= 1.0 + self.learning_rate * 0.05;
             }
             Outcome::Failure => {
                 // Tighten thresholds on failure
-                self.thresholds.min_health_for_expansion *= (1.0 + self.learning_rate * 0.1);
-                self.thresholds.max_cpu_before_scaling *= (1.0 - self.learning_rate * 0.05);
+                self.thresholds.min_health_for_expansion *= 1.0 + self.learning_rate * 0.1;
+                self.thresholds.max_cpu_before_scaling *= 1.0 - self.learning_rate * 0.05;
             }
             Outcome::Neutral => {
                 // No adjustment

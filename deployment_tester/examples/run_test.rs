@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use deployment_tester::{TestConfig, TestRunner};
 use std::path::PathBuf;
-use tracing_subscriber;
 
 #[derive(Parser)]
 #[command(name = "aurelia-test")]

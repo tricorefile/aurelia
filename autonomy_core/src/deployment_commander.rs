@@ -1,13 +1,13 @@
 use crate::server_config::{ServerConfig, TargetServer};
 use crate::ssh_deployer::{AuthMethod, SshDeployer};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Deployment status for tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,7 +187,7 @@ impl DeploymentCommander {
         // Perform deployment
         let result = deployer.full_deploy(
             &server.ip,
-            server.port as u16,
+            server.port,
             &server.username,
             auth,
             &self.binary_path,

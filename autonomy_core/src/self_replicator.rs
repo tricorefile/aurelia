@@ -1,10 +1,10 @@
 use crate::server_config::{ServerConfig, TargetServer};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use deployment_tester::{DeploymentClient, ServerConfig as TestServerConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
