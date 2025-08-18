@@ -143,12 +143,11 @@ async fn main() {
                             .await;
                     }
                     AppEvent::StrategyDecision(
-                        common::StrategyDecision::Buy(_, _)
-                        | common::StrategyDecision::Sell(_, _),
+                        common::StrategyDecision::Buy(_, _) | common::StrategyDecision::Sell(_, _),
                     ) => {
                         http_service.record_trade(true).await;
                     }
-                    AppEvent::StrategyDecision(_) => {},
+                    AppEvent::StrategyDecision(_) => {}
                     AppEvent::FinancialUpdate(pnl) => {
                         http_service.update_pnl(*pnl).await;
                     }
