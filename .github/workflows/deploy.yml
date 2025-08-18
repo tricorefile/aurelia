@@ -15,91 +15,74 @@ on:
         description: 'Target server IP (leave empty to use default)'
         required: false
         default: ''
+      release_tag:
+        description: 'Release tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy
+  deploy-from-release:
+    name: Deploy from GitHub Release
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          targets: x86_64-unknown-linux-gnu
+          python-version: '3.x'
 
-      - name: Install dependencies
+      - name: Install SSH client
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
+          sudo apt-get install -y openssh-client
 
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-deploy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-deploy-
-
-      - name: Build release binary
+      - name: Deploy using smart deploy script
+        if: ${{ secrets.SSH_PRIVATE_KEY != '' }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_IP: ${{ github.event.inputs.server_ip || secrets.DEFAULT_SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER || 'ubuntu' }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || 'latest' }}
         run: |
-          cargo build --release --target x86_64-unknown-linux-gnu --bin kernel
-          ls -la target/x86_64-unknown-linux-gnu/release/
+          # Setup SSH key
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Run smart deployment
+          python3 py/smart_deploy.py \
+            "$SERVER_IP" \
+            --user "$SERVER_USER" \
+            --key ~/.ssh/deploy_key \
+            --tag "$RELEASE_TAG" \
+            --path "/opt/aurelia"
+          
+          echo "Deployment completed!"
 
-      - name: Prepare deployment package
+      - name: Manual deployment instructions
+        if: ${{ secrets.SSH_PRIVATE_KEY == '' }}
         run: |
-          mkdir -p deploy_package
-          cp target/x86_64-unknown-linux-gnu/release/kernel deploy_package/
-          cp -r config deploy_package/ || echo "No config directory"
-          tar czf aurelia-deploy.tar.gz deploy_package/
-          echo "Deployment package created"
-          ls -la aurelia-deploy.tar.gz
-
-      # 如果你有服务器的SSH密钥，可以取消下面的注释并配置
-      # - name: Deploy to server
-      #   env:
-      #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     SERVER_IP: ${{ github.event.inputs.server_ip || secrets.DEFAULT_SERVER_IP }}
-      #     SERVER_USER: ${{ secrets.SERVER_USER }}
-      #   run: |
-      #     # Setup SSH
-      #     mkdir -p ~/.ssh
-      #     echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-      #     chmod 600 ~/.ssh/deploy_key
-      #     
-      #     # Copy files to server
-      #     scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-      #       aurelia-deploy.tar.gz $SERVER_USER@$SERVER_IP:/tmp/
-      #     
-      #     # Deploy on server
-      #     ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << 'ENDSSH'
-      #       cd /opt/aurelia || mkdir -p /opt/aurelia && cd /opt/aurelia
-      #       tar xzf /tmp/aurelia-deploy.tar.gz
-      #       cd deploy_package
-      #       
-      #       # Stop old service
-      #       sudo systemctl stop aurelia || true
-      #       
-      #       # Install new binary
-      #       sudo cp kernel /usr/local/bin/aurelia-kernel
-      #       sudo chmod +x /usr/local/bin/aurelia-kernel
-      #       
-      #       # Copy config
-      #       sudo cp -r config /etc/aurelia/ || true
-      #       
-      #       # Start service
-      #       sudo systemctl start aurelia
-      #       sudo systemctl status aurelia
-      #     ENDSSH
-
-      - name: Upload deployment package
-        uses: actions/upload-artifact@v4
-        with:
-          name: aurelia-deploy-${{ github.event.inputs.environment }}
-          path: aurelia-deploy.tar.gz
-          retention-days: 7
+          echo "======================================"
+          echo "  Manual Deployment Instructions"
+          echo "======================================"
+          echo ""
+          echo "To deploy Aurelia to your server, run:"
+          echo ""
+          echo "# Using bash script:"
+          echo "./scripts/smart_deploy.sh latest YOUR_SERVER_IP"
+          echo ""
+          echo "# Or using Python script:"
+          echo "python3 py/smart_deploy.py YOUR_SERVER_IP --tag latest"
+          echo ""
+          echo "The script will:"
+          echo "1. Detect your server's architecture"
+          echo "2. Download the appropriate binary from GitHub releases"
+          echo "3. Deploy and start the service"
+          echo ""
+          echo "Required GitHub Secrets for automatic deployment:"
+          echo "- SSH_PRIVATE_KEY: Your SSH private key"
+          echo "- DEFAULT_SERVER_IP: Default server IP address"
+          echo "- SERVER_USER: SSH username (optional, defaults to 'ubuntu')"
