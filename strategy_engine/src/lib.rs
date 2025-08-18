@@ -65,9 +65,9 @@ impl StrategyEngine {
 }
 
 /// Process event from kernel
-/// 
+///
 /// # Safety
-/// 
+///
 /// This function is unsafe because it dereferences a raw pointer.
 /// The caller must ensure that:
 /// - `event_json` is a valid pointer to a null-terminated C string
