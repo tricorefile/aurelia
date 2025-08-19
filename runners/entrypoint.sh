@@ -25,31 +25,31 @@ fi
 
 # Function to get registration token from PAT
 get_registration_token() {
-    # Check if this is a PAT (starts with ghp_) or a registration token
-    if [[ "$GITHUB_TOKEN" == ghp_* ]]; then
-        echo "Detected Personal Access Token (PAT)"
-        echo "Getting registration token from GitHub API..."
+    # Check if this is a PAT (supports both old ghp_ and new github_pat_ prefixes)
+    if [[ "$GITHUB_TOKEN" == ghp_* || "$GITHUB_TOKEN" == github_pat_* ]]; then
+        echo "Detected Personal Access Token (PAT)" >&2
+        echo "Getting registration token from GitHub API..." >&2
         
         # First verify the PAT works
-        echo "Verifying PAT..."
+        echo "Verifying PAT..." >&2
         AUTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/user")
         
         if [[ "$AUTH_CHECK" != "200" ]]; then
-            echo "Error: PAT authentication failed (HTTP $AUTH_CHECK)"
-            echo "Please check:"
-            echo "1. Your token is valid and not expired"
-            echo "2. Your token has the required permissions"
+            echo "Error: PAT authentication failed (HTTP $AUTH_CHECK)" >&2
+            echo "Please check:" >&2
+            echo "1. Your token is valid and not expired" >&2
+            echo "2. Your token has the required permissions" >&2
             exit 1
         fi
         
-        echo "PAT verified successfully"
+        echo "PAT verified successfully" >&2
         
         # Get registration token - CORRECT API ENDPOINT
         API_URL="https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}/actions/runners/registration-token"
-        echo "Requesting registration token from: $API_URL"
+        echo "Requesting registration token from: $API_URL" >&2
         
         RESPONSE=$(curl -sX POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -60,42 +60,44 @@ get_registration_token() {
         if echo "$RESPONSE" | grep -q '"token"'; then
             TOKEN=$(echo "$RESPONSE" | jq -r .token)
             if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]]; then
-                echo "Registration token obtained successfully"
+                echo "Registration token obtained successfully" >&2
+                # Only output the token to stdout
                 echo "$TOKEN"
                 return 0
             fi
         fi
         
         # If we get here, something went wrong
-        echo "Failed to get registration token"
-        echo "API Response: $RESPONSE"
+        echo "Failed to get registration token" >&2
+        echo "API Response: $RESPONSE" >&2
         
         if echo "$RESPONSE" | grep -q "404"; then
-            echo ""
-            echo "ERROR: 404 Not Found - Possible causes:"
-            echo "1. Repository '${GITHUB_OWNER}/${GITHUB_REPOSITORY}' does not exist or is not accessible"
-            echo "2. Your PAT does not have admin access to the repository"
-            echo "3. Required PAT permissions:"
-            echo "   - For public repos: 'public_repo' scope"
-            echo "   - For private repos: 'repo' scope (all)"
-            echo "   - Admin access to the repository is required"
-            echo ""
-            echo "To fix:"
-            echo "1. Go to: https://github.com/settings/tokens"
-            echo "2. Create a new token with 'repo' scope"
-            echo "3. Make sure you have admin access to ${GITHUB_OWNER}/${GITHUB_REPOSITORY}"
+            echo "" >&2
+            echo "ERROR: 404 Not Found - Possible causes:" >&2
+            echo "1. Repository '${GITHUB_OWNER}/${GITHUB_REPOSITORY}' does not exist or is not accessible" >&2
+            echo "2. Your PAT does not have admin access to the repository" >&2
+            echo "3. Required PAT permissions:" >&2
+            echo "   - For public repos: 'public_repo' scope" >&2
+            echo "   - For private repos: 'repo' scope (all)" >&2
+            echo "   - Admin access to the repository is required" >&2
+            echo "" >&2
+            echo "To fix:" >&2
+            echo "1. Go to: https://github.com/settings/tokens" >&2
+            echo "2. Create a new token with 'repo' scope" >&2
+            echo "3. Make sure you have admin access to ${GITHUB_OWNER}/${GITHUB_REPOSITORY}" >&2
         elif echo "$RESPONSE" | grep -q "403"; then
-            echo ""
-            echo "ERROR: 403 Forbidden - Your token lacks required permissions"
+            echo "" >&2
+            echo "ERROR: 403 Forbidden - Your token lacks required permissions" >&2
         elif echo "$RESPONSE" | grep -q "401"; then
-            echo ""
-            echo "ERROR: 401 Unauthorized - Your token is invalid or expired"
+            echo "" >&2
+            echo "ERROR: 401 Unauthorized - Your token is invalid or expired" >&2
         fi
         
         exit 1
     else
         # Assume it's already a registration token
-        echo "Using provided registration token directly"
+        echo "Using provided registration token directly" >&2
+        # Only output the token to stdout
         echo "$GITHUB_TOKEN"
     fi
 }
