@@ -33,11 +33,11 @@ test_mirror() {
 # 测试各个镜像源
 WORKING_MIRRORS=()
 
-test_mirror "https://docker.m.daocloud.io" "DaoCloud" && WORKING_MIRRORS+=("https://docker.m.daocloud.io")
+test_mirror "https://mirror.ccs.tencentyun.com" "腾讯云" && WORKING_MIRRORS+=("https://mirror.ccs.tencentyun.com")
+test_mirror "https://registry.cn-hangzhou.aliyuncs.com" "阿里云杭州" && WORKING_MIRRORS+=("https://registry.cn-hangzhou.aliyuncs.com")
+test_mirror "https://docker.mirrors.ustc.edu.cn" "中科大" && WORKING_MIRRORS+=("https://docker.mirrors.ustc.edu.cn")
 test_mirror "https://hub-mirror.c.163.com" "网易" && WORKING_MIRRORS+=("https://hub-mirror.c.163.com")
 test_mirror "https://registry.docker-cn.com" "Docker中国" && WORKING_MIRRORS+=("https://registry.docker-cn.com")
-test_mirror "https://mirror.ccs.tencentyun.com" "腾讯云" && WORKING_MIRRORS+=("https://mirror.ccs.tencentyun.com")
-test_mirror "https://docker.mirrors.ustc.edu.cn" "中科大" && WORKING_MIRRORS+=("https://docker.mirrors.ustc.edu.cn")
 
 echo ""
 echo -e "${GREEN}可用镜像源: ${#WORKING_MIRRORS[@]} 个${NC}"
