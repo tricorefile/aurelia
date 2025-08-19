@@ -62,10 +62,14 @@ RUN useradd -m -s /bin/bash runner && \
 # Create work directory
 WORKDIR /home/runner
 
-# Download and configure GitHub Actions runner
-ARG RUNNER_VERSION=2.311.0
+# Download and configure GitHub Actions runner (latest stable version)
+ARG RUNNER_VERSION=2.328.0
+ENV RUNNER_VERSION=${RUNNER_VERSION}
+
+# Download runner with hash verification (as per GitHub's official guide)
 RUN curl -o actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz -L \
     https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz && \
+    echo "01066fad3a2893e63e6ca80ae3a1fad5bf9329d60e77ee15f2b97c148c3cd4e  actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" | shasum -a 256 -c && \
     tar xzf ./actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz && \
     rm actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz && \
     ./bin/installdependencies.sh
