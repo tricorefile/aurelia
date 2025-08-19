@@ -11,28 +11,16 @@ env:
 
 jobs:
   test:
-    name: Test - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]  # Skipping macos-latest
-        rust: [stable]
-        include:
-          - os: ubuntu-latest
-            rust: beta
-          - os: ubuntu-latest
-            rust: nightly
-
+    name: Test
+    runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
@@ -60,58 +48,48 @@ jobs:
         run: cargo test --verbose
 
       - name: Check formatting
-        if: matrix.rust == 'stable'
         run: cargo fmt -- --check
 
       - name: Clippy
-        if: matrix.rust == 'stable'
         run: cargo clippy -- -D warnings
 
   build-binary:
-    name: Build Binary - ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          # Skipping macOS builds
-          # - os: macos-latest
-          #   target: x86_64-apple-darwin
-          # - os: macos-latest
-          #   target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-
+    name: Build Binary
+    runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-unknown-linux-gnu
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
-          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
-            sudo apt-get install -y musl-tools
-          fi
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }} --bin kernel
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
 
-      - name: Test binary (Unix)
-        if: (matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-apple-darwin') && matrix.os != 'windows-latest'
+      - name: Create test .env file
         run: |
-          ./target/${{ matrix.target }}/release/kernel --version || echo "No version flag"
+          echo "BINANCE_API_KEY=test_key" > .env
+          echo "BINANCE_API_SECRET=test_secret" >> .env
 
-      - name: Test binary (Windows)
-        if: matrix.target == 'x86_64-pc-windows-msvc' && matrix.os == 'windows-latest'
-        shell: pwsh
+      - name: Build release binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu --bin kernel
+
+      - name: Test binary exists
         run: |
-          ./target/${{ matrix.target }}/release/kernel.exe --version 2>$null || echo "No version flag"
+          ls -la target/x86_64-unknown-linux-gnu/release/
+          test -f target/x86_64-unknown-linux-gnu/release/kernel

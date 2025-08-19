@@ -42,10 +42,7 @@ ENV PATH=/opt/rust/bin:$PATH
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && \
     rustup component add rustfmt clippy && \
-    rustup target add x86_64-unknown-linux-gnu && \
-    rustup target add aarch64-unknown-linux-gnu && \
-    rustup target add x86_64-unknown-linux-musl && \
-    rustup target add aarch64-unknown-linux-musl
+    rustup target add x86_64-unknown-linux-gnu
 
 # Install cross for cross-compilation
 RUN cargo install cross --version 0.2.5
@@ -83,10 +80,8 @@ RUN mkdir -p /home/runner/.cargo && \
     echo '[net]' > /home/runner/.cargo/config.toml && \
     echo 'git-fetch-with-cli = true' >> /home/runner/.cargo/config.toml
 
-# Pre-cache common Rust dependencies for Aurelia
-RUN cargo install cargo-cache && \
-    cargo install cargo-audit && \
-    cargo install cargo-outdated
+# Pre-cache common Rust dependencies for Aurelia (optional, can be removed to speed up build)
+# RUN cargo install cargo-cache cargo-audit cargo-outdated
 
 # Clean up
 RUN apt-get clean && \

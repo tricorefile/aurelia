@@ -16,51 +16,9 @@ env:
 
 jobs:
   build:
-    name: Build - ${{ matrix.platform.name }}
-    runs-on: ${{ matrix.platform.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          # Linux builds
-          - name: linux-x86_64
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            bin: kernel
-            command: build
-          
-          - name: linux-x86_64-musl
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            bin: kernel
-            command: build
-          
-          - name: linux-aarch64
-            os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            bin: kernel
-            command: build
-          
-          # macOS builds - SKIPPED
-          # - name: macos-x86_64
-          #   os: macos-latest
-          #   target: x86_64-apple-darwin
-          #   bin: kernel
-          #   command: build
-          
-          # - name: macos-aarch64
-          #   os: macos-latest
-          #   target: aarch64-apple-darwin
-          #   bin: kernel
-          #   command: build
-          
-          # Windows builds
-          - name: windows-x86_64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bin: kernel.exe
-            command: build
-
+    name: Build Ubuntu Linux
+    runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,53 +26,36 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform.target }}
+          targets: x86_64-unknown-linux-gnu
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
-          # For musl builds
-          if [[ "${{ matrix.platform.target }}" == *"musl"* ]]; then
-            sudo apt-get install -y musl-tools
-          fi
-          # For aarch64 cross-compilation
-          if [[ "${{ matrix.platform.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-            echo "AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar" >> $GITHUB_ENV
-            # Set OpenSSL for cross-compilation
-            echo "AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR=/usr" >> $GITHUB_ENV
-            echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
-          fi
-
 
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
-          key: ${{ matrix.platform.name }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: linux-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ matrix.platform.name }}-cargo-registry-
+            linux-cargo-registry-
 
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
-          key: ${{ matrix.platform.name }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          key: linux-cargo-index-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ matrix.platform.name }}-cargo-index-
+            linux-cargo-index-
 
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ matrix.platform.name }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: linux-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ matrix.platform.name }}-cargo-build-target-
+            linux-cargo-build-target-
 
       - name: Create test .env file
         run: |
@@ -123,47 +64,25 @@ jobs:
 
       - name: Build binary
         run: |
-          cargo build --verbose --release --target ${{ matrix.platform.target }} --bin kernel
+          cargo build --verbose --release --target x86_64-unknown-linux-gnu --bin kernel
 
-      - name: Package binary (Unix)
-        if: matrix.platform.os != 'windows-latest'
-        shell: bash
+      - name: Package binary
         run: |
-          cd target/${{ matrix.platform.target }}/release
-          tar czf ../../../aurelia-${{ matrix.platform.name }}.tar.gz ${{ matrix.platform.bin }}
+          cd target/x86_64-unknown-linux-gnu/release
+          tar czf ../../../aurelia-linux-x86_64.tar.gz kernel
           cd -
 
-      - name: Package binary (Windows)
-        if: matrix.platform.os == 'windows-latest'
-        shell: pwsh
+      - name: Generate SHA256
         run: |
-          cd target/${{ matrix.platform.target }}/release
-          7z a ../../../aurelia-${{ matrix.platform.name }}.zip ${{ matrix.platform.bin }}
-          cd ../../../
-
-      - name: Generate SHA256 (Unix)
-        if: matrix.platform.os != 'windows-latest'
-        shell: bash
-        run: |
-          if [[ "${{ matrix.platform.os }}" == "macos-latest" ]]; then
-            shasum -a 256 aurelia-${{ matrix.platform.name }}.tar.gz > aurelia-${{ matrix.platform.name }}.tar.gz.sha256
-          else
-            sha256sum aurelia-${{ matrix.platform.name }}.tar.gz > aurelia-${{ matrix.platform.name }}.tar.gz.sha256
-          fi
-
-      - name: Generate SHA256 (Windows)
-        if: matrix.platform.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          $hash = (Get-FileHash -Path "aurelia-${{ matrix.platform.name }}.zip" -Algorithm SHA256).Hash
-          "$hash  aurelia-${{ matrix.platform.name }}.zip" | Out-File -FilePath "aurelia-${{ matrix.platform.name }}.zip.sha256"
+          sha256sum aurelia-linux-x86_64.tar.gz > aurelia-linux-x86_64.tar.gz.sha256
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aurelia-${{ matrix.platform.name }}
+          name: aurelia-linux-x86_64
           path: |
-            aurelia-${{ matrix.platform.name }}.*
+            aurelia-linux-x86_64.tar.gz
+            aurelia-linux-x86_64.tar.gz.sha256
 
   release:
     name: Create Release
@@ -193,42 +112,27 @@ jobs:
           body: |
             # Aurelia Release
             
-            ## 下载说明 / Download Instructions
+            ## Download
             
-            ### Linux
-            - `aurelia-linux-x86_64.tar.gz` - 标准Linux x86_64版本 (Ubuntu, Debian, CentOS等)
-            - `aurelia-linux-x86_64-musl.tar.gz` - 静态链接版本，适用于Alpine Linux或需要更好兼容性的场景
-            - `aurelia-linux-aarch64.tar.gz` - ARM64版本 (树莓派4, AWS Graviton等)
+            - `aurelia-linux-x86_64.tar.gz` - Ubuntu/Debian Linux x86_64
             
-            ### Windows
-            - `aurelia-windows-x86_64.zip` - Windows 64位
+            ## Installation
             
-            ## 安装方法 / Installation
-            
-            ### Linux/macOS
             ```bash
-            # 下载对应平台的版本
+            # Download
             wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name || github.event.inputs.tag_name }}/aurelia-linux-x86_64.tar.gz
             
-            # 解压
+            # Extract
             tar xzf aurelia-linux-x86_64.tar.gz
             
-            # 添加执行权限
+            # Make executable
             chmod +x kernel
             
-            # 运行
+            # Run
             ./kernel
             ```
             
-            ### Windows
-            ```powershell
-            # 下载并解压zip文件
-            # 运行 kernel.exe
-            ```
-            
-            ## 验证文件完整性 / Verify File Integrity
-            
-            每个文件都附带 `.sha256` 校验文件，可以用来验证下载的完整性：
+            ## Verify Integrity
             
             ```bash
             sha256sum -c aurelia-linux-x86_64.tar.gz.sha256
@@ -237,5 +141,4 @@ jobs:
           prerelease: false
           files: |
             artifacts/**/*.tar.gz
-            artifacts/**/*.zip
             artifacts/**/*.sha256
