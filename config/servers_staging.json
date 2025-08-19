@@ -1,0 +1,19 @@
+{
+  "environment": "staging",
+  "servers": [
+    {
+      "name": "staging-1",
+      "ip": "10.0.1.10",
+      "user": "ubuntu",
+      "port": 22,
+      "role": "primary"
+    },
+    {
+      "name": "staging-2",
+      "ip": "10.0.1.11",
+      "user": "ubuntu",
+      "port": 22,
+      "role": "secondary"
+    }
+  ]
+}

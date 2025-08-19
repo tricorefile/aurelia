@@ -1,0 +1,26 @@
+{
+  "environment": "production",
+  "servers": [
+    {
+      "name": "prod-1",
+      "ip": "106.54.1.130",
+      "user": "ubuntu",
+      "port": 22,
+      "role": "primary"
+    },
+    {
+      "name": "prod-2",
+      "ip": "106.54.1.131",
+      "user": "ubuntu",
+      "port": 22,
+      "role": "secondary"
+    },
+    {
+      "name": "prod-3",
+      "ip": "106.54.1.132",
+      "user": "ubuntu",
+      "port": 22,
+      "role": "secondary"
+    }
+  ]
+}

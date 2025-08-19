@@ -1,0 +1,201 @@
+name: Deploy (Self-Hosted)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      target_servers:
+        description: 'Target servers (JSON array or comma-separated)'
+        required: false
+        default: ''
+      release_tag:
+        description: 'Release tag to deploy'
+        required: false
+        default: 'latest'
+
+jobs:
+  prepare:
+    name: Prepare Deployment
+    runs-on: [self-hosted, linux, x64, docker, aurelia, prod]
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare deployment matrix
+        id: set-matrix
+        run: |
+          if [[ -n "${{ github.event.inputs.target_servers }}" ]]; then
+            # Use provided servers
+            SERVERS="${{ github.event.inputs.target_servers }}"
+            if [[ "$SERVERS" == *"["* ]]; then
+              # Already JSON array
+              echo "matrix={\"server\":$SERVERS}" >> $GITHUB_OUTPUT
+            else
+              # Convert comma-separated to JSON array
+              JSON_ARRAY=$(echo "$SERVERS" | jq -R 'split(",") | map(ltrimstr(" ") | rtrimstr(" "))')
+              echo "matrix={\"server\":$JSON_ARRAY}" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Read from config file based on environment
+            if [[ "${{ github.event.inputs.environment }}" == "production" ]]; then
+              SERVERS=$(cat config/servers_prod.json | jq -c '.servers | map(.ip)')
+            else
+              SERVERS=$(cat config/servers_staging.json | jq -c '.servers | map(.ip)')
+            fi
+            echo "matrix={\"server\":$SERVERS}" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    name: Deploy to ${{ matrix.server }}
+    needs: prepare
+    runs-on: [self-hosted, linux, x64, docker, aurelia, prod]
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      max-parallel: 2
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup deployment environment
+        run: |
+          # Ensure Python and dependencies are available
+          python3 -m pip install --user requests paramiko pyyaml
+
+      - name: Download release artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Detect server architecture
+          ARCH=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/aurelia_deploy ${{ secrets.SERVER_USER }}@${{ matrix.server }} "uname -m")
+          
+          if [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+            ASSET_NAME="aurelia-linux-aarch64"
+          else
+            ASSET_NAME="aurelia-linux-x86_64"
+          fi
+          
+          # Download appropriate binary from GitHub releases
+          if [[ "${{ github.event.inputs.release_tag }}" == "latest" ]]; then
+            DOWNLOAD_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest \
+              | jq -r ".assets[] | select(.name | contains(\"$ASSET_NAME\")) | .browser_download_url")
+          else
+            DOWNLOAD_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.inputs.release_tag }} \
+              | jq -r ".assets[] | select(.name | contains(\"$ASSET_NAME\")) | .browser_download_url")
+          fi
+          
+          echo "Downloading $ASSET_NAME from $DOWNLOAD_URL"
+          curl -L -o aurelia.tar.gz "$DOWNLOAD_URL"
+          tar -xzf aurelia.tar.gz
+
+      - name: Deploy to server
+        env:
+          SSH_KEY_PATH: /home/runner/.ssh/aurelia_deploy
+        run: |
+          # Copy binary to server
+          scp -o StrictHostKeyChecking=no -i $SSH_KEY_PATH \
+            aurelia-* ${{ secrets.SERVER_USER }}@${{ matrix.server }}:/tmp/aurelia_new
+          
+          # Deploy and restart service
+          ssh -o StrictHostKeyChecking=no -i $SSH_KEY_PATH \
+            ${{ secrets.SERVER_USER }}@${{ matrix.server }} << 'EOF'
+            # Stop existing service
+            sudo systemctl stop aurelia || true
+            
+            # Backup current binary
+            if [ -f /opt/aurelia/aurelia ]; then
+              sudo mv /opt/aurelia/aurelia /opt/aurelia/aurelia.backup.$(date +%Y%m%d_%H%M%S)
+            fi
+            
+            # Install new binary
+            sudo mkdir -p /opt/aurelia
+            sudo mv /tmp/aurelia_new /opt/aurelia/aurelia
+            sudo chmod +x /opt/aurelia/aurelia
+            
+            # Create or update systemd service
+            sudo tee /etc/systemd/system/aurelia.service > /dev/null << 'SERVICE'
+            [Unit]
+            Description=Aurelia Trading Agent
+            After=network.target
+            
+            [Service]
+            Type=simple
+            User=aurelia
+            WorkingDirectory=/opt/aurelia
+            ExecStart=/opt/aurelia/aurelia
+            Restart=always
+            RestartSec=10
+            Environment="RUST_LOG=info"
+            
+            [Install]
+            WantedBy=multi-user.target
+            SERVICE
+            
+            # Create user if not exists
+            id -u aurelia &>/dev/null || sudo useradd -r -s /bin/false aurelia
+            
+            # Set permissions
+            sudo chown -R aurelia:aurelia /opt/aurelia
+            
+            # Reload and start service
+            sudo systemctl daemon-reload
+            sudo systemctl enable aurelia
+            sudo systemctl start aurelia
+            
+            # Check status
+            sleep 3
+            sudo systemctl status aurelia --no-pager
+          EOF
+
+      - name: Verify deployment
+        run: |
+          # Wait for service to stabilize
+          sleep 10
+          
+          # Check if service is running
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/aurelia_deploy \
+            ${{ secrets.SERVER_USER }}@${{ matrix.server }} \
+            "sudo systemctl is-active aurelia"
+          
+          # Check API endpoint if available
+          if curl -f -s -o /dev/null -w "%{http_code}" http://${{ matrix.server }}:8080/health; then
+            echo "✅ Health check passed"
+          else
+            echo "⚠️ Health check failed or not available"
+          fi
+
+  rollback:
+    name: Rollback on Failure
+    needs: deploy
+    if: failure()
+    runs-on: [self-hosted, linux, x64, docker, aurelia, prod]
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Rollback to previous version
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/aurelia_deploy \
+            ${{ secrets.SERVER_USER }}@${{ matrix.server }} << 'EOF'
+            # Find latest backup
+            BACKUP=$(ls -t /opt/aurelia/aurelia.backup.* 2>/dev/null | head -1)
+            
+            if [ -n "$BACKUP" ]; then
+              echo "Rolling back to $BACKUP"
+              sudo systemctl stop aurelia
+              sudo mv /opt/aurelia/aurelia /opt/aurelia/aurelia.failed
+              sudo mv "$BACKUP" /opt/aurelia/aurelia
+              sudo systemctl start aurelia
+              echo "✅ Rollback completed"
+            else
+              echo "❌ No backup found for rollback"
+              exit 1
+            fi
+          EOF

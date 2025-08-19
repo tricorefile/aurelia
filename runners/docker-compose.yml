@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  runner-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RUNNER_VERSION: 2.311.0
+    container_name: aurelia-runner-1
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_OWNER=tricorefile
+      - GITHUB_REPOSITORY=aurelia
+      - RUNNER_NAME=docker-runner-prod-1
+      - RUNNER_LABELS=self-hosted,linux,x64,docker,aurelia,prod
+      - RUNNER_WORKDIR=/home/runner/work
+    volumes:
+      # Mount Docker socket for Docker-in-Docker operations
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent storage for cargo cache
+      - cargo-cache:/home/runner/.cargo
+      # Persistent storage for build cache
+      - build-cache:/home/runner/work
+      # SSH keys for deployment
+      - ./ssh:/home/runner/.ssh:ro
+    restart: unless-stopped
+    networks:
+      - runner-network
+
+  runner-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RUNNER_VERSION: 2.311.0
+    container_name: aurelia-runner-2
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_OWNER=tricorefile
+      - GITHUB_REPOSITORY=aurelia
+      - RUNNER_NAME=docker-runner-prod-2
+      - RUNNER_LABELS=self-hosted,linux,x64,docker,aurelia,prod
+      - RUNNER_WORKDIR=/home/runner/work
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - cargo-cache:/home/runner/.cargo
+      - build-cache-2:/home/runner/work
+      - ./ssh:/home/runner/.ssh:ro
+    restart: unless-stopped
+    networks:
+      - runner-network
+
+  runner-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RUNNER_VERSION: 2.311.0
+    container_name: aurelia-runner-test
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_OWNER=tricorefile
+      - GITHUB_REPOSITORY=aurelia
+      - RUNNER_NAME=docker-runner-test
+      - RUNNER_LABELS=self-hosted,linux,x64,docker,aurelia,test
+      - RUNNER_WORKDIR=/home/runner/work
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - cargo-cache:/home/runner/.cargo
+      - build-cache-test:/home/runner/work
+      - ./ssh:/home/runner/.ssh:ro
+    restart: unless-stopped
+    networks:
+      - runner-network
+
+volumes:
+  cargo-cache:
+    driver: local
+  build-cache:
+    driver: local
+  build-cache-2:
+    driver: local
+  build-cache-test:
+    driver: local
+
+networks:
+  runner-network:
+    driver: bridge
