@@ -25,7 +25,9 @@ fi
 
 # Function to get registration token from PAT
 get_registration_token() {
-    # Check if this is a PAT (supports both old ghp_ and new github_pat_ prefixes)
+    # Check token type by prefix
+    # PAT tokens: ghp_* (classic) or github_pat_* (fine-grained)
+    # Registration tokens: Usually start with A* and are longer
     if [[ "$GITHUB_TOKEN" == ghp_* || "$GITHUB_TOKEN" == github_pat_* ]]; then
         echo "Detected Personal Access Token (PAT)" >&2
         echo "Getting registration token from GitHub API..." >&2
@@ -94,9 +96,14 @@ get_registration_token() {
         fi
         
         exit 1
+    elif [[ "$GITHUB_TOKEN" == A* && ${#GITHUB_TOKEN} -gt 40 ]]; then
+        # Registration tokens typically start with A and are longer than 40 chars
+        echo "Detected Registration Token (will expire in 1 hour)" >&2
+        # Only output the token to stdout
+        echo "$GITHUB_TOKEN"
     else
-        # Assume it's already a registration token
-        echo "Using provided registration token directly" >&2
+        # Unknown format, try to use as-is
+        echo "Token format unknown, attempting to use as registration token" >&2
         # Only output the token to stdout
         echo "$GITHUB_TOKEN"
     fi
