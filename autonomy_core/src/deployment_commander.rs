@@ -240,7 +240,7 @@ impl DeploymentCommander {
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
                 deployer.connect_with_password(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &password,
                 )?;
@@ -248,7 +248,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     None,
@@ -257,7 +257,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::KeyWithPassphrase => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     server.get_password().as_deref(),
@@ -290,7 +290,7 @@ impl DeploymentCommander {
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
                 deployer.connect_with_password(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &password,
                 )?;
@@ -298,7 +298,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     None,
@@ -307,7 +307,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::KeyWithPassphrase => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     server.get_password().as_deref(),
@@ -340,7 +340,7 @@ impl DeploymentCommander {
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
                 deployer.connect_with_password(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &password,
                 )?;
@@ -348,7 +348,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     None,
@@ -357,7 +357,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::KeyWithPassphrase => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     server.get_password().as_deref(),
@@ -453,7 +453,7 @@ impl DeploymentCommander {
                     .ok_or_else(|| anyhow::anyhow!("Password not available"))?;
                 deployer.connect_with_password(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &password,
                 )?;
@@ -461,7 +461,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::Key => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     None,
@@ -470,7 +470,7 @@ impl DeploymentCommander {
             crate::server_config::AuthMethod::KeyWithPassphrase => {
                 deployer.connect_with_key(
                     &server.ip,
-                    server.port as u16,
+                    server.port,
                     &server.username,
                     &server.get_expanded_ssh_key_path(),
                     server.get_password().as_deref(),
