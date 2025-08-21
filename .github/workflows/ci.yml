@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,8 +12,8 @@ env:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
-    
+    runs-on: [self-hosted, linux, x64, docker, aurelia]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -55,8 +55,8 @@ jobs:
 
   build-binary:
     name: Build Binary
-    runs-on: ubuntu-latest
-    
+    runs-on: [self-hosted, linux, x64, docker, aurelia]
+
     steps:
       - uses: actions/checkout@v4
 
