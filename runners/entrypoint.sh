@@ -153,6 +153,36 @@ fi
 
 echo "Runner configured successfully"
 
+# Prevent auto-update issues
+echo "Disabling auto-update to prevent Runner.Listener issues..."
+export RUNNER_ALLOW_RUNASROOT=1
+export ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1
+
+# Check if Runner.Listener exists before starting
+if [[ ! -f "./bin/Runner.Listener" ]]; then
+    echo "Error: Runner.Listener not found!"
+    echo "Attempting to fix..."
+    
+    # Check for versioned directories
+    if [[ -d "bin.${RUNNER_VERSION}" ]]; then
+        echo "Found versioned bin directory, creating symlink..."
+        rm -f bin
+        ln -s "bin.${RUNNER_VERSION}" bin
+    fi
+    
+    if [[ -d "externals.${RUNNER_VERSION}" ]]; then
+        echo "Found versioned externals directory, creating symlink..."
+        rm -f externals
+        ln -s "externals.${RUNNER_VERSION}" externals
+    fi
+    
+    # Verify again
+    if [[ ! -f "./bin/Runner.Listener" ]]; then
+        echo "Fatal: Cannot recover Runner.Listener"
+        exit 1
+    fi
+fi
+
 # Start the runner
 echo "Starting GitHub Actions runner..."
 exec ./run.sh

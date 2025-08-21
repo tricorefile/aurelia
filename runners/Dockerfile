@@ -72,7 +72,9 @@ RUN curl -o actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz -L \
     echo "01066fad3a2893e63e6ca80ae3a1fad5bf9329d60e77ee15f2b97c148c3cd4e  actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" | shasum -a 256 -c && \
     tar xzf ./actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz && \
     rm actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz && \
-    ./bin/installdependencies.sh
+    ./bin/installdependencies.sh && \
+    # Prevent auto-update issues by setting correct permissions
+    chmod +x ./bin/Runner.Listener ./bin/Runner.Worker ./bin/Runner.PluginHost ./run.sh ./run-helper.sh
 
 # Copy startup script
 COPY entrypoint.sh /home/runner/entrypoint.sh
